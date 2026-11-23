@@ -301,11 +301,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Payment Verification Dashboard (/admin/payments) State
   const [paymentTabFilter, setPaymentTabFilter] = useState<
-    'all' | 'awaiting' | 'submitted' | 'verified' | 'rejected' | 'expired'
+    'all' | 'awaiting' | 'submitted' | 'verified' | 'rejected' | 'expired' | 'refunded'
   >('all');
   const [paymentSearchQuery, setPaymentSearchQuery] = useState('');
   const [inspectingScreenshotOrder, setInspectingScreenshotOrder] =
     useState<OrderPaymentRecord | null>(null);
+  const [signedEvidenceMeta, setSignedEvidenceMeta] = useState<{
+    token: string;
+    expiresAt: string;
+  } | null>(null);
   const [rejectModalOrder, setRejectModalOrder] = useState<{
     record: OrderPaymentRecord;
     mode: 'REJECTED' | 'RESUBMISSION_REQUESTED';
@@ -1003,7 +1007,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </form>
           ) : !ownerConfigured ? (
-            /* CASE C: First-Run Owner Password Setup (when ADMIN_OWNER_PASSWORD is unset and unclaimed) */
+            /* CASE C: First-Run Owner Password Setup (when owner account is unclaimed) */
             <form onSubmit={handleBootstrapOwnerSubmit} className="space-y-3.5 text-xs">
               <div className="p-3 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8]">
                 <p className="font-bold text-[#3B2824]">
@@ -2113,6 +2117,113 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setTimeout(() => setPaymentActionBanner(null), 3000);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `order_payments/${rec.orderNumber}`);
+    }
+  };
+
+  // Admin Action 5: Mark Advance Payment as REFUNDED
+  const handleRefundAdvancePayment = async (rec: OrderPaymentRecord) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const histId = `hist-refund-${rec.orderNumber}-${Date.now()}`;
+      const refundedAmt = rec.verifiedAdvanceAmount || rec.submittedAmount || 0;
+      const batch = writeBatch(db);
+
+      batch.set(doc(db, 'order_payments', rec.orderNumber), {
+        ...rec,
+        paymentStatus: 'REFUNDED',
+        updatedAt: nowIso,
+      });
+
+      if (rec.latestSubmissionId) {
+        const subDoc = paymentSubmissions.find((s) => s.id === rec.latestSubmissionId);
+        if (subDoc) {
+          batch.set(doc(db, 'payment_submissions', subDoc.id), {
+            ...subDoc,
+            verificationStatus: 'REFUNDED',
+            reviewedByEmail: effectiveAdminEmail || 'admin',
+            reviewedAt: nowIso,
+          });
+        }
+      }
+
+      const matchingOrder = orders.find((o) => o.orderNumber === rec.orderNumber);
+      if (matchingOrder) {
+        batch.set(doc(db, 'orders', rec.orderNumber), {
+          ...matchingOrder,
+          paymentStatus: 'REFUNDED',
+          updatedAt: nowIso,
+        });
+        batch.set(doc(db, 'order_summaries', rec.orderNumber), {
+          orderNumber: rec.orderNumber,
+          userId: matchingOrder.userId || 'guest',
+          fulfilmentType: matchingOrder.fulfilmentType,
+          orderStatus: matchingOrder.orderStatus,
+          paymentMethod: matchingOrder.paymentMethod,
+          paymentStatus: 'REFUNDED',
+          advanceRequired: true,
+          requiredAdvanceAmount: rec.requiredAdvanceAmount,
+          submittedAdvanceAmount: rec.submittedAmount,
+          verifiedAdvanceAmount: 0,
+          remainingBalanceAmount: rec.totalOrderAmount,
+          totalAmount: matchingOrder.totalAmount,
+          itemsSummary: matchingOrder.itemsSummary,
+          pickupDate: matchingOrder.pickupDate || '',
+          pickupTimeSlot: matchingOrder.pickupTimeSlot || '',
+          tableNumber: matchingOrder.tableNumber || '',
+          createdAt: matchingOrder.createdAt,
+          updatedAt: nowIso,
+        });
+      }
+
+      batch.set(doc(db, 'payment_verification_history', histId), {
+        id: histId,
+        orderNumber: rec.orderNumber,
+        submissionId: rec.latestSubmissionId || '',
+        action: 'PAYMENT_REFUNDED',
+        actorRole: 'admin',
+        actorIdentifier: effectiveAdminEmail || 'admin',
+        amount: refundedAmt,
+        utrNumber: rec.latestUtrNumber || '',
+        note: `Advance payment of ₹${refundedAmt} marked as REFUNDED by ${
+          effectiveAdminEmail || 'admin'
+        }.`,
+        createdAt: nowIso,
+      });
+
+      await batch.commit();
+      setPaymentActionBanner(`Marked Order #${rec.orderNumber} advance payment as REFUNDED.`);
+      setTimeout(() => setPaymentActionBanner(null), 4000);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `order_payments/${rec.orderNumber}`);
+    }
+  };
+
+  // Authorised Private Payment Evidence Inspection (Short-Lived 5-Min Signed Access Token)
+  const handleInspectPaymentScreenshot = async (rec: OrderPaymentRecord) => {
+    setInspectingScreenshotOrder(rec);
+    setSignedEvidenceMeta(null);
+    try {
+      const res = await fetch('/api/admin/payments/signed-evidence-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(passwordSessionToken ? { Authorization: `Bearer ${passwordSessionToken}` } : {}),
+        },
+        body: JSON.stringify({
+          orderNumber: rec.orderNumber,
+          submissionId: rec.latestSubmissionId || rec.orderNumber,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSignedEvidenceMeta({
+          token: data.signedAccessToken,
+          expiresAt: data.expiresAt,
+        });
+      }
+    } catch {
+      // Non-blocking audit signature fetch
     }
   };
 
@@ -4447,6 +4558,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       </div>
 
+                      {signedEvidenceMeta && (
+                        <div className="px-3.5 py-2 rounded-xl bg-[#E8F5E9] border border-[#2D6A4F]/30 text-[11px] text-[#2D6A4F] flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold">
+                            Private Bucket Signed Access Verified (private-payment-evidence)
+                          </span>
+                          <span className="font-mono-num">
+                            Expires: {new Date(signedEvidenceMeta.expiresAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="bg-[#1E1412] rounded-2xl p-3 flex items-center justify-center max-h-[60vh] overflow-auto">
                         {inspectingScreenshotOrder.latestScreenshotUrl ? (
                           <img
@@ -4602,8 +4724,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {
                       id: 'submitted',
                       label: 'Submitted for Verification',
-                      count: orderPayments.filter((p) => p.paymentStatus === 'PAYMENT_SUBMITTED')
-                        .length,
+                      count: orderPayments.filter(
+                        (p) =>
+                          p.paymentStatus === 'PAYMENT_SUBMITTED' ||
+                          p.paymentStatus === 'AWAITING_VERIFICATION'
+                      ).length,
                     },
                     {
                       id: 'verified',
@@ -4623,6 +4748,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       id: 'expired',
                       label: 'Expired',
                       count: orderPayments.filter((p) => p.paymentStatus === 'EXPIRED').length,
+                    },
+                    {
+                      id: 'refunded',
+                      label: 'Refunded',
+                      count: orderPayments.filter((p) => p.paymentStatus === 'REFUNDED').length,
                     },
                   ].map((tab) => (
                     <button
@@ -4666,7 +4796,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       )
                         return false;
                     } else if (paymentTabFilter === 'submitted') {
-                      if (rec.paymentStatus !== 'PAYMENT_SUBMITTED') return false;
+                      if (
+                        rec.paymentStatus !== 'PAYMENT_SUBMITTED' &&
+                        rec.paymentStatus !== 'AWAITING_VERIFICATION'
+                      )
+                        return false;
                     } else if (paymentTabFilter === 'verified') {
                       if (rec.paymentStatus !== 'VERIFIED') return false;
                     } else if (paymentTabFilter === 'rejected') {
@@ -4677,6 +4811,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         return false;
                     } else if (paymentTabFilter === 'expired') {
                       if (rec.paymentStatus !== 'EXPIRED') return false;
+                    } else if (paymentTabFilter === 'refunded') {
+                      if (rec.paymentStatus !== 'REFUNDED') return false;
                     }
 
                     if (paymentSearchQuery.trim()) {
@@ -4766,20 +4902,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <span>Reject Payment</span>
                               </button>
                             )}
-                            {rec.paymentStatus !== 'VERIFIED' && (
+                            {rec.paymentStatus !== 'VERIFIED' &&
+                              rec.paymentStatus !== 'REFUNDED' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRejectionReasonInput('');
+                                    setRejectModalOrder({
+                                      record: rec,
+                                      mode: 'RESUBMISSION_REQUESTED',
+                                    });
+                                  }}
+                                  className="px-3.5 py-2 rounded-xl border border-[#3B2824] hover:bg-[#F5EBE1] text-[#3B2824] text-xs font-bold flex items-center gap-1"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span>Request New Screenshot</span>
+                                </button>
+                              )}
+                            {(rec.paymentStatus === 'VERIFIED' ||
+                              rec.paymentStatus === 'PAYMENT_SUBMITTED') && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setRejectionReasonInput('');
-                                  setRejectModalOrder({
-                                    record: rec,
-                                    mode: 'RESUBMISSION_REQUESTED',
-                                  });
-                                }}
-                                className="px-3.5 py-2 rounded-xl border border-[#3B2824] hover:bg-[#F5EBE1] text-[#3B2824] text-xs font-bold flex items-center gap-1"
+                                onClick={() => handleRefundAdvancePayment(rec)}
+                                className="px-3.5 py-2 rounded-xl border border-[#B94E62] hover:bg-[#FFF5F5] text-[#B94E62] text-xs font-bold"
                               >
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span>Request New Screenshot</span>
+                                Mark Refunded
                               </button>
                             )}
                           </div>
@@ -4836,12 +4983,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <img
                                   src={rec.latestScreenshotUrl}
                                   alt={`Screenshot ${rec.orderNumber}`}
-                                  onClick={() => setInspectingScreenshotOrder(rec)}
+                                  onClick={() => handleInspectPaymentScreenshot(rec)}
                                   className="h-28 w-auto object-contain mx-auto rounded-lg border border-[#E6D7C8] cursor-pointer hover:opacity-90"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => setInspectingScreenshotOrder(rec)}
+                                  onClick={() => handleInspectPaymentScreenshot(rec)}
                                   className="px-3 py-1.5 rounded-lg bg-[#3B2824] text-[#FFF8F1] text-[11px] font-semibold flex items-center gap-1 mx-auto"
                                 >
                                   <Eye className="w-3.5 h-3.5" />

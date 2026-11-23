@@ -137,10 +137,12 @@
             "AWAITING_PAYMENT",
             "CONTACT_PENDING",
             "PAYMENT_SUBMITTED",
+            "AWAITING_VERIFICATION",
             "VERIFIED",
             "REJECTED",
             "RESUBMISSION_REQUESTED",
-            "EXPIRED"
+            "EXPIRED",
+            "REFUNDED"
           ],
           "maxLength": 40
         },
@@ -194,7 +196,14 @@
         "customerNote": { "type": "string", "maxLength": 600 },
         "verificationStatus": {
           "type": "string",
-          "enum": ["SUBMITTED", "VERIFIED", "REJECTED", "RESUBMISSION_REQUESTED"],
+          "enum": [
+            "SUBMITTED",
+            "AWAITING_VERIFICATION",
+            "VERIFIED",
+            "REJECTED",
+            "RESUBMISSION_REQUESTED",
+            "REFUNDED"
+          ],
           "maxLength": 40
         },
         "rejectionReason": { "type": "string", "maxLength": 600 },
@@ -239,6 +248,7 @@
             "PAYMENT_VERIFIED",
             "PAYMENT_REJECTED",
             "RESUBMISSION_REQUESTED",
+            "PAYMENT_REFUNDED",
             "INTERNAL_NOTE_ADDED"
           ],
           "maxLength": 50

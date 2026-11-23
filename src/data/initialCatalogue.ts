@@ -903,10 +903,12 @@ export type OrderPaymentStatus =
   | 'AWAITING_PAYMENT'
   | 'CONTACT_PENDING'
   | 'PAYMENT_SUBMITTED'
+  | 'AWAITING_VERIFICATION'
   | 'VERIFIED'
   | 'REJECTED'
   | 'RESUBMISSION_REQUESTED'
-  | 'EXPIRED';
+  | 'EXPIRED'
+  | 'REFUNDED';
 
 export interface PaymentSettings {
   upiId: string;
@@ -973,7 +975,13 @@ export interface PaymentSubmissionRecord {
   screenshotMimeType: string;
   paymentDateTime: string;
   customerNote?: string;
-  verificationStatus: 'SUBMITTED' | 'VERIFIED' | 'REJECTED' | 'RESUBMISSION_REQUESTED';
+  verificationStatus:
+    | 'SUBMITTED'
+    | 'AWAITING_VERIFICATION'
+    | 'VERIFIED'
+    | 'REJECTED'
+    | 'RESUBMISSION_REQUESTED'
+    | 'REFUNDED';
   rejectionReason?: string;
   adminNote?: string;
   reviewedByEmail?: string;
@@ -993,6 +1001,7 @@ export interface PaymentVerificationHistoryRecord {
     | 'PAYMENT_VERIFIED'
     | 'PAYMENT_REJECTED'
     | 'RESUBMISSION_REQUESTED'
+    | 'PAYMENT_REFUNDED'
     | 'INTERNAL_NOTE_ADDED';
   actorRole: 'customer' | 'admin' | 'system';
   actorIdentifier: string;

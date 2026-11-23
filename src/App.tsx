@@ -132,16 +132,6 @@ export interface CartItem {
 const BOOTSTRAPPED_ADMIN_EMAIL = 'prabhve5@gmail.com';
 
 export default function App() {
-  // --------------------------------------------------------------------------
-  // 1. GOOGLE MAPS PLATFORM — TIER 2 QUOTA ALERT BANNER
-  // --------------------------------------------------------------------------
-  const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
-
-  useEffect(() => {
-    const onQuotaExceeded = () => setMapsQuotaExceeded(true);
-    window.addEventListener('gmp-quota-exceeded', onQuotaExceeded);
-    return () => window.removeEventListener('gmp-quota-exceeded', onQuotaExceeded);
-  }, []);
 
   // --------------------------------------------------------------------------
   // 2. SPA ROUTING & DINE-IN TABLE QR PARAMETER DETECTION
@@ -745,22 +735,11 @@ export default function App() {
   const [couponInput, setCouponInput] = useState('');
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState<
-    'cod' | 'pay_at_pickup' | 'pay_at_counter' | 'razorpay_online'
+    'cod' | 'pay_at_pickup' | 'pay_at_counter'
   >('cod');
-  const [razorpayConfig, setRazorpayConfig] = useState<{
-    razorpayConfigured: boolean;
-    razorpayKeyId: string | null;
-  }>({ razorpayConfigured: false, razorpayKeyId: null });
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [latestPlacedOrder, setLatestPlacedOrder] = useState<OrderRecord | null>(null);
-
-  useEffect(() => {
-    fetch('/api/payments/config')
-      .then((r) => r.json())
-      .then((d) => setRazorpayConfig(d))
-      .catch(() => {});
-  }, []);
 
   // Client-side preview calculation (verified by /api/orders/verify-pricing on submit)
   const cartCalculations = useMemo(() => {
@@ -1136,20 +1115,6 @@ export default function App() {
   if (currentPath.startsWith('/admin')) {
     return (
       <>
-        {mapsQuotaExceeded && (
-          <div className="bg-amber-50 border-b border-amber-300 text-amber-900 px-4 py-2.5 text-xs flex items-center justify-between">
-            <span>
-              Google Maps demo key quota reached. For uninterrupted maps, add your own Google Maps API key in Settings &gt; Secrets.
-            </span>
-            <button
-              type="button"
-              onClick={() => setMapsQuotaExceeded(false)}
-              className="font-bold underline ml-3"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
         <AdminDashboard
           currentPath={currentPath}
           onNavigate={navigate}
@@ -1211,24 +1176,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFF8F1] text-[#3B2824]">
-      {/* GOOGLE MAPS TIER 2 QUOTA ALERT BANNER */}
-      {mapsQuotaExceeded && (
-        <div className="bg-amber-50 border-b border-amber-300 text-amber-900 px-4 py-2.5 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
-              Google Maps shared demo key quota exceeded. You can still open Lovey&apos;s Bakery &amp; Pizza Corners directly on Google Maps or configure a personal key.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMapsQuotaExceeded(false)}
-            className="font-bold underline ml-3 whitespace-nowrap"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* 1. ANNOUNCEMENT BAR */}
       {settings.announcementActive && (
@@ -2541,11 +2488,6 @@ export default function App() {
                               Pay at Store Counter
                             </label>
                           </div>
-                          {!razorpayConfig.razorpayConfigured && (
-                            <p className="text-[11px] text-[#6B544E] mt-1.5">
-                              Note: Instant Razorpay online gateway is configurable via server environment secrets; Cash &amp; UPI QR on Delivery/Counter are active.
-                            </p>
-                          )}
                         </>
                       )}
                     </div>

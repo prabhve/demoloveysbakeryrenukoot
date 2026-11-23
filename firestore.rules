@@ -133,10 +133,12 @@ service cloud.firestore {
         st == 'AWAITING_PAYMENT' ||
         st == 'CONTACT_PENDING' ||
         st == 'PAYMENT_SUBMITTED' ||
+        st == 'AWAITING_VERIFICATION' ||
         st == 'VERIFIED' ||
         st == 'REJECTED' ||
         st == 'RESUBMISSION_REQUESTED' ||
-        st == 'EXPIRED'
+        st == 'EXPIRED' ||
+        st == 'REFUNDED'
       );
     }
 
@@ -210,9 +212,11 @@ service cloud.firestore {
         data.paymentDateTime is string && data.paymentDateTime.size() >= 4 && data.paymentDateTime.size() <= 60 &&
         data.verificationStatus is string && (
           data.verificationStatus == 'SUBMITTED' ||
+          data.verificationStatus == 'AWAITING_VERIFICATION' ||
           data.verificationStatus == 'VERIFIED' ||
           data.verificationStatus == 'REJECTED' ||
-          data.verificationStatus == 'RESUBMISSION_REQUESTED'
+          data.verificationStatus == 'RESUBMISSION_REQUESTED' ||
+          data.verificationStatus == 'REFUNDED'
         ) &&
         isValidTimestampOrIso(data.createdAt);
     }
@@ -263,8 +267,8 @@ service cloud.firestore {
           'isAvailable', 'isPublished', 'isBestseller', 'isFeatured', 'isNewArrival',
           'isEggless', 'containsEgg', 'isJainFriendly', 'spiceLevel',
           'sameDayAvailable', 'advanceNoticeHours', 'stockQuantity', 'reservedStock',
-          'minStockThreshold', 'isArchived', 'seoTitle', 'seoDescription', 'prepTimeMinutes',
-          'createdAt', 'updatedAt'
+          'minStockThreshold', 'isArchived', 'isVeg', 'badge', 'seoTitle', 'seoDescription',
+          'prepTimeMinutes', 'createdAt', 'updatedAt'
         ]) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 140 &&
         data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 140 && data.slug.matches('^[a-z0-9\\-]+$') &&

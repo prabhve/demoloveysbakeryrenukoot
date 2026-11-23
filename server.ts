@@ -181,7 +181,6 @@ const OWNER_DEFAULT_PERMISSIONS =
   'view,create,edit,publish,delete_archive,export_csv,approve_orders,verify_payments,manage_settings,invite_staff';
 
 function loadAdminAuthStore(): AdminAuthStoreData {
-  const envOwnerPassword = (process.env.ADMIN_OWNER_PASSWORD || '').trim();
   const nowIso = new Date().toISOString();
 
   let store: AdminAuthStoreData = {
@@ -229,42 +228,10 @@ function loadAdminAuthStore(): AdminAuthStoreData {
     console.warn('Admin auth store read fallback:', err);
   }
 
-  // If ADMIN_OWNER_PASSWORD is provided in environment and valid, ensure owner account has a password hash
-  if (envOwnerPassword.length >= 12) {
-    let ownerAcc = store.accounts.find(
-      (a) => a.email.toLowerCase() === 'prabhve5@gmail.com' || a.roleId === 'role-owner'
-    );
-    if (!ownerAcc) {
-      ownerAcc = {
-        id: 'staff-owner-bootstrapped',
-        email: 'prabhve5@gmail.com',
-        username: 'owner',
-        name: "Lovey's Principal Owner",
-        phone: '+91 80905 29971',
-        roleId: 'role-owner',
-        roleName: 'Owner / Super Admin',
-        permissionsSummary: OWNER_DEFAULT_PERMISSIONS,
-        status: 'active',
-        passwordHash: hashPasswordScrypt(envOwnerPassword),
-        requirePasswordChange: false,
-        sessionVersion: 1,
-        sessionTimeoutMinutes: 60,
-        passwordUpdatedAt: nowIso,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      };
-      store.accounts.unshift(ownerAcc);
-    } else if (!ownerAcc.passwordHash) {
-      ownerAcc.passwordHash = hashPasswordScrypt(envOwnerPassword);
-      ownerAcc.updatedAt = nowIso;
-    }
-    store.ownerConfigured = true;
-  } else {
-    const ownerAcc = store.accounts.find(
-      (a) => a.email.toLowerCase() === 'prabhve5@gmail.com' || a.roleId === 'role-owner'
-    );
-    store.ownerConfigured = Boolean(ownerAcc && ownerAcc.passwordHash);
-  }
+  const ownerAcc = store.accounts.find(
+    (a) => a.email.toLowerCase() === 'prabhve5@gmail.com' || a.roleId === 'role-owner'
+  );
+  store.ownerConfigured = Boolean(ownerAcc && ownerAcc.passwordHash);
 
   return store;
 }
@@ -769,118 +736,10 @@ ${publicRoutes
   });
 
   // ============================================================================
-  // 3. CONFIGURABLE RAZORPAY SERVER-SIDE PAYMENT INTEGRATION
+  // 3. PRIVATE PAYMENT EVIDENCE SHORT-LIVED SIGNED ACCESS & ADMIN AUTHENTICATION
   // ============================================================================
-  app.get('/api/payments/config', (_req, res) => {
-    const keyId = process.env.RAZORPAY_KEY_ID || '';
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
-    const isConfigured = Boolean(keyId.trim() && keySecret.trim());
-    res.json({
-      razorpayConfigured: isConfigured,
-      razorpayKeyId: isConfigured ? keyId.trim() : null,
-    });
-  });
+  const evidenceSigningKey = crypto.randomBytes(32);
 
-  app.post('/api/payments/create-order', async (req, res) => {
-    try {
-      const keyId = (process.env.RAZORPAY_KEY_ID || '').trim();
-      const keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
-      if (!keyId || !keySecret) {
-        return res.status(503).json({
-          error:
-            'Razorpay credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are not configured on the server. Online payment remains disabled until credentials are added.',
-        });
-      }
-
-      const { amountInRupees, receipt } = req.body;
-      const amountPaise = Math.round(Number(amountInRupees) * 100);
-      if (!Number.isFinite(amountPaise) || amountPaise < 100) {
-        return res.status(400).json({ error: 'Invalid payment amount.' });
-      }
-
-      const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-      const response = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${authHeader}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: amountPaise,
-          currency: 'INR',
-          receipt: String(receipt || `LOVEYS-${Date.now()}`).slice(0, 40),
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return res.status(response.status).json({
-          error: data?.error?.description || 'Failed to create Razorpay order.',
-        });
-      }
-
-      return res.json({
-        orderId: data.id,
-        amount: data.amount,
-        currency: data.currency,
-        keyId,
-      });
-    } catch (error: any) {
-      console.error('Razorpay order creation error:', error);
-      return res.status(500).json({
-        error: error.message || 'Payment gateway communication failed.',
-      });
-    }
-  });
-
-  app.post('/api/payments/verify-signature', (req, res) => {
-    try {
-      const keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
-      if (!keySecret) {
-        return res.status(503).json({
-          error: 'RAZORPAY_KEY_SECRET is not configured on the server.',
-        });
-      }
-
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-        return res.status(400).json({
-          error: 'Missing Razorpay payment verification parameters.',
-        });
-      }
-
-      const payload = `${razorpay_order_id}|${razorpay_payment_id}`;
-      const expectedSignature = crypto
-        .createHmac('sha256', keySecret)
-        .update(payload)
-        .digest('hex');
-
-      const isValid = crypto.timingSafeEqual(
-        Buffer.from(expectedSignature, 'utf8'),
-        Buffer.from(String(razorpay_signature), 'utf8')
-      );
-
-      if (!isValid) {
-        return res.status(400).json({ verified: false, error: 'Invalid payment signature.' });
-      }
-
-      return res.json({
-        verified: true,
-        paymentId: razorpay_payment_id,
-        orderId: razorpay_order_id,
-      });
-    } catch (error: any) {
-      console.error('Razorpay signature verification error:', error);
-      return res.status(500).json({
-        verified: false,
-        error: error.message || 'Signature verification failed.',
-      });
-    }
-  });
-
-  // ============================================================================
-  // 3B. ENTERPRISE BMS SECURITY: PASSWORD-ONLY ADMIN AUTHENTICATION & SESSIONS
-  // ============================================================================
   const requireCsrfHeader = (
     req: express.Request,
     res: express.Response
@@ -894,6 +753,52 @@ ${publicRoutes
     }
     return true;
   };
+
+  // Issue a short-lived (5-minute) role-verified signed access grant for private payment evidence
+  app.post('/api/admin/payments/signed-evidence-url', (req, res) => {
+    if (!requireCsrfHeader(req, res)) return;
+    const authCtx = getAuthenticatedSession(req);
+    if (!authCtx) {
+      return res.status(401).json({
+        error: 'Authentication required to access private customer payment evidence.',
+      });
+    }
+
+    const perms = authCtx.account.permissionsSummary || '';
+    const isAuthorisedForPaymentEvidence =
+      authCtx.account.roleId === 'role-owner' ||
+      authCtx.account.email.toLowerCase() === 'prabhve5@gmail.com' ||
+      perms.includes('verify_payments') ||
+      perms.includes('approve_orders');
+
+    if (!isAuthorisedForPaymentEvidence) {
+      return res.status(403).json({
+        error: 'Your staff role does not have verify_payments permission to inspect private payment screenshots.',
+      });
+    }
+
+    const orderNumber = String(req.body?.orderNumber || '').trim();
+    const submissionId = String(req.body?.submissionId || orderNumber).trim();
+    if (!orderNumber) {
+      return res.status(400).json({ error: 'orderNumber is required.' });
+    }
+
+    const expiresAtMs = Date.now() + 5 * 60 * 1000; // 5-minute short-lived token
+    const payload = `${orderNumber}|${submissionId}|${authCtx.account.id}|${expiresAtMs}`;
+    const signature = crypto
+      .createHmac('sha256', evidenceSigningKey)
+      .update(payload)
+      .digest('hex');
+
+    return res.json({
+      granted: true,
+      orderNumber,
+      submissionId,
+      inspectedByEmail: authCtx.account.email,
+      expiresAtIso: new Date(expiresAtMs).toISOString(),
+      signedToken: `${expiresAtMs}.${signature}`,
+    });
+  });
 
   app.get('/api/admin/auth/status', (req, res) => {
     const authCtx = getAuthenticatedSession(req);
@@ -913,7 +818,7 @@ ${publicRoutes
     });
   });
 
-  // One-time first-run owner password claim when ADMIN_OWNER_PASSWORD is not set in env
+  // One-time first-run owner password claim for the registered Principal Owner account
   app.post('/api/admin/auth/bootstrap-owner', (req, res) => {
     if (!requireCsrfHeader(req, res)) return;
     if (adminAuthStore.ownerConfigured) {

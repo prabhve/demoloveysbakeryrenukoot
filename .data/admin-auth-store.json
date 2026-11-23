@@ -1,0 +1,27 @@
+{
+  "ownerConfigured": true,
+  "accounts": [
+    {
+      "id": "staff-owner-default",
+      "email": "owner@loveys-demo.test",
+      "username": "owner",
+      "name": "Lovey's Principal Owner",
+      "phone": "+91 80905 29971",
+      "roleId": "role-owner",
+      "roleName": "Owner / Super Admin",
+      "permissionsSummary": "view,create,edit,publish,delete_archive,export_csv,approve_orders,verify_payments,manage_settings,invite_staff",
+      "status": "active",
+      "passwordHash": "scrypt$3b258591a8a75691a2b5455a7e7cd886$7936297b14f1a5b82c1dc06148a7c55c04afe6a9b7022f7a42c92fa6bc5e7c1e5fa1f30277a89fa8769f590e7145c1e6e8c02c466d041bcb9af85befd21f6fc9",
+      "requirePasswordChange": true,
+      "mustChangePassword": true,
+      "sessionVersion": 1,
+      "sessionTimeoutMinutes": 60,
+      "passwordUpdatedAt": "2026-11-23T14:15:13.723Z",
+      "createdAt": "2026-11-23T14:15:13.723Z",
+      "updatedAt": "2026-11-23T14:18:52.460Z"
+    }
+  ],
+  "sessions": [],
+  "loginHistory": [],
+  "resetTokens": []
+}

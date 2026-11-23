@@ -239,13 +239,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return saved >= 15 ? saved : 30;
   });
 
-  const [passwordSessionToken, setPasswordSessionToken] = useState<string>(() => {
-    return (
-      sessionStorage.getItem('loveys_admin_session_token') ||
-      localStorage.getItem('loveys_admin_session_token') ||
-      ''
-    );
-  });
+  const [passwordSessionToken, setPasswordSessionToken] = useState<string>('');
   const [passwordAuthAccount, setPasswordAuthAccount] = useState<StaffMemberRecord | null>(null);
   const [ownerConfigured, setOwnerConfigured] = useState<boolean>(true);
   const [authStatusLoading, setAuthStatusLoading] = useState<boolean>(true);
@@ -499,8 +493,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch {
       // ignore network error on logout
     }
-    sessionStorage.removeItem('loveys_admin_session_token');
-    localStorage.removeItem('loveys_admin_session_token');
     setPasswordSessionToken('');
     setPasswordAuthAccount(null);
     onSignOut();
@@ -606,11 +598,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
 
       const token = String(data.sessionToken || '');
-      if (rememberDevice) {
-        localStorage.setItem('loveys_admin_session_token', token);
-      } else {
-        sessionStorage.setItem('loveys_admin_session_token', token);
-      }
       setPasswordSessionToken(token);
       setPasswordAuthAccount(data.account);
       setOwnerConfigured(true);
@@ -653,11 +640,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
 
       const token = String(data.sessionToken || '');
-      if (rememberDevice) {
-        localStorage.setItem('loveys_admin_session_token', token);
-      } else {
-        sessionStorage.setItem('loveys_admin_session_token', token);
-      }
 
       // Attempt non-blocking Firebase Auth Email/Password sign-in or provisioning & Firestore profile reconciliation
       if (data.account?.email) {
@@ -822,7 +804,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         return;
       }
       if (data.sessionToken) {
-        sessionStorage.setItem('loveys_admin_session_token', data.sessionToken);
         setPasswordSessionToken(data.sessionToken);
       }
       if (data.account) {
@@ -6346,13 +6327,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               userEmail={effectiveAdminEmail || 'admin'}
               sessionToken={passwordSessionToken}
               onSessionTokenRotated={(newTok) => {
-                sessionStorage.setItem('loveys_admin_session_token', newTok);
                 setPasswordSessionToken(newTok);
               }}
               onAccountUpdated={(updatedAcc, newTok) => {
                 setPasswordAuthAccount(updatedAcc);
                 if (newTok) {
-                  sessionStorage.setItem('loveys_admin_session_token', newTok);
                   setPasswordSessionToken(newTok);
                 }
                 if (onPasswordAuthSuccess) {

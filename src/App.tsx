@@ -92,6 +92,14 @@ import {
 } from 'lucide-react';
 
 import Scroll3DShowcase from './components/Scroll3DShowcase';
+import { Analytics } from '@vercel/analytics/react';
+import {
+  DEFAULT_PUBLIC_ORIGIN,
+  resolveRouteSeoAndHtml,
+  buildVerifiedAeoQuestions,
+  isProductOwnerVerifiedAndPublished,
+  resolveCategoryAliasSlug,
+} from './utils/seoEngine';
 
 export interface CartItem {
   cartItemId: string;
@@ -136,16 +144,38 @@ export default function App() {
   // --------------------------------------------------------------------------
   // 2. SPA ROUTING & DINE-IN TABLE QR PARAMETER DETECTION
   // --------------------------------------------------------------------------
-  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/');
+  const [rawUrlPath, setRawUrlPath] = useState<string>(() => window.location.pathname || '/');
+  const isHindiUrlPath = rawUrlPath === '/hi' || rawUrlPath.startsWith('/hi/');
+  const currentPath = useMemo(() => {
+    const stripped = isHindiUrlPath ? rawUrlPath.replace(/^\/hi/, '') || '/' : rawUrlPath;
+    return stripped.replace(/\/+$/, '') || '/';
+  }, [rawUrlPath, isHindiUrlPath]);
+
   const [activeTableQr, setActiveTableQr] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('table') || '';
   });
 
+  // --------------------------------------------------------------------------
+  // 3. LANGUAGE TOGGLE (EN / हिंदी), GALLERY LIGHTBOX & UI STATE
+  // --------------------------------------------------------------------------
+  const [lang, setLang] = useState<'en' | 'hi'>(() =>
+    window.location.pathname === '/hi' || window.location.pathname.startsWith('/hi/')
+      ? 'hi'
+      : 'en'
+  );
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [lightboxAsset, setLightboxAsset] = useState<MediaAssetItem | null>(null);
+  const [signatureCakeIdx, setSignatureCakeIdx] = useState(0);
+
   const navigate = (path: string) => {
     const [pathname, search] = path.split('?');
+    const cleanTarget = (pathname || '/').replace(/\/+$/, '') || '/';
     window.history.pushState({}, '', path);
-    setCurrentPath(pathname || '/');
+    setRawUrlPath(cleanTarget);
+    if (cleanTarget === '/hi' || cleanTarget.startsWith('/hi/')) {
+      setLang('hi');
+    }
     if (search) {
       const params = new URLSearchParams(search);
       const tbl = params.get('table');
@@ -160,7 +190,13 @@ export default function App() {
 
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname || '/');
+      const nextRaw = window.location.pathname || '/';
+      setRawUrlPath(nextRaw);
+      if (nextRaw === '/hi' || nextRaw.startsWith('/hi/')) {
+        setLang('hi');
+      } else {
+        setLang('en');
+      }
       const params = new URLSearchParams(window.location.search);
       const tbl = params.get('table');
       if (tbl) {
@@ -172,14 +208,6 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  // --------------------------------------------------------------------------
-  // 3. LANGUAGE TOGGLE (EN / हिंदी), GALLERY LIGHTBOX & UI STATE
-  // --------------------------------------------------------------------------
-  const [lang, setLang] = useState<'en' | 'hi'>('en');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [lightboxAsset, setLightboxAsset] = useState<MediaAssetItem | null>(null);
-  const [signatureCakeIdx, setSignatureCakeIdx] = useState(0);
 
   // --------------------------------------------------------------------------
   // 4. FIREBASE AUTHENTICATION & FIRESTORE REAL-TIME COLLECTIONS
@@ -223,7 +251,11 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      if (user && user.email === BOOTSTRAPPED_ADMIN_EMAIL && user.emailVerified) {
+      if (
+        user &&
+        ((user.email === BOOTSTRAPPED_ADMIN_EMAIL && user.emailVerified) ||
+          user.email?.toLowerCase() === 'owner@loveys-demo.test')
+      ) {
         setIsFirebaseAdmin(true);
         // Seed initial data into Firestore if business_settings/default doesn't exist yet
         try {
@@ -245,7 +277,7 @@ export default function App() {
               batch.set(doc(db, 'role_definitions', rl.id), rl)
             );
             INITIAL_STAFF_MEMBERS.forEach((st) =>
-              batch.set(doc(db, 'staff_members', st.email), st)
+              batch.set(doc(db, 'staff_members', st.id), st)
             );
             INITIAL_RAW_MATERIALS.forEach((rm) =>
               batch.set(doc(db, 'raw_materials', rm.id), rm)
@@ -267,7 +299,7 @@ export default function App() {
                 batch.set(doc(db, 'role_definitions', rl.id), rl)
               );
               INITIAL_STAFF_MEMBERS.forEach((st) =>
-                batch.set(doc(db, 'staff_members', st.email), st)
+                batch.set(doc(db, 'staff_members', st.id), st)
               );
               INITIAL_RAW_MATERIALS.forEach((rm) =>
                 batch.set(doc(db, 'raw_materials', rm.id), rm)
@@ -1225,52 +1257,153 @@ export default function App() {
     ? products.find((p) => !p.isArchived && (p.slug === activePdpSlug || p.id === activePdpSlug)) ||
       null
     : null;
+  const activePdpCakeDesign =
+    activePdpSlug && !activePdpProduct
+      ? cakeDesigns.find(
+          (d) => d.isActive && (d.slug === activePdpSlug || d.id === activePdpSlug)
+        ) || null
+      : null;
 
   // Determine active Category filter if on /categories/[slug] (with singular/plural alias resolution)
   const rawRouteCategorySlug = currentPath.startsWith('/categories/')
     ? currentPath.replace('/categories/', '')
     : null;
-  const routeCategorySlug =
-    rawRouteCategorySlug === 'pastries'
-      ? 'pastries-desserts'
-      : rawRouteCategorySlug === 'pizzas'
-      ? 'pizza'
-      : rawRouteCategorySlug;
+  const routeCategorySlug = rawRouteCategorySlug
+    ? resolveCategoryAliasSlug(rawRouteCategorySlug)
+    : null;
+  const matchedRouteCategory = routeCategorySlug
+    ? categories.find((c) => c.slug === routeCategorySlug && c.isActive) || null
+    : null;
 
-  // Dynamic SEO Document Title per Route
+  // Synchronise live Firestore data with server-side pre-render & sitemap snapshot
   useEffect(() => {
-    const brandSuffix = "Lovey's Bakery & Pizza Corners, Renukoot";
-    if (activePdpProduct) {
-      document.title = `${activePdpProduct.name} — ${brandSuffix}`;
-    } else if (routeCategorySlug) {
-      const cat = categories.find((c) => c.slug === routeCategorySlug);
-      document.title = `${cat ? cat.name : 'Category Catalogue'} — ${brandSuffix}`;
-    } else if (currentPath === '/menu') {
-      document.title = `Explore Full Bakery & Pizza Menu — ${brandSuffix}`;
-    } else if (currentPath === '/cakes') {
-      document.title = `Signature Celebration Cakes — ${brandSuffix}`;
-    } else if (currentPath === '/custom-cake') {
-      document.title = `Custom Cake Ordering Studio — ${brandSuffix}`;
-    } else if (currentPath === '/gallery') {
-      document.title = `Celebration & Bakery Gallery — ${brandSuffix}`;
-    } else if (currentPath === '/about') {
-      document.title = `Our Story — ${brandSuffix}`;
-    } else if (currentPath === '/contact') {
-      document.title = `Store Location & Contact — ${brandSuffix}`;
-    } else if (currentPath === '/cart' || currentPath === '/checkout') {
-      document.title = `Order Cart & Checkout — ${brandSuffix}`;
-    } else if (
-      currentPath === '/track-order' ||
-      currentPath.startsWith('/order/') ||
-      currentPath.startsWith('/payment/')
-    ) {
-      document.title = `Track Order & Advance Payment — ${brandSuffix}`;
-    } else if (currentPath.startsWith('/admin')) {
-      document.title = `Enterprise Business Management System — ${brandSuffix}`;
-    } else {
-      document.title = `${settings.businessName || "Lovey's Bakery & Pizza Corners"} — Custom Cakes & Artisan Bakery in Renukoot`;
+    const timer = window.setTimeout(() => {
+      fetch('/api/seo/sync-snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings,
+          websiteConfig,
+          paymentSettings,
+          categories,
+          products,
+          cakeDesigns,
+          customPages,
+          deliveryZones,
+        }),
+      }).catch(() => {});
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [
+    settings,
+    websiteConfig,
+    paymentSettings,
+    categories,
+    products,
+    cakeDesigns,
+    customPages,
+    deliveryZones,
+  ]);
+
+  // Central On-Page SEO, Canonical, OpenGraph, Twitter, Hreflang & JSON-LD Synchronisation (Phases 3, 6, 12, 14)
+  const currentSeoState = useMemo(() => {
+    const effectivePath =
+      lang === 'hi' &&
+      ['/', '/menu', '/cakes', '/custom-cake', '/gallery', '/about', '/contact'].includes(
+        currentPath
+      )
+        ? currentPath === '/'
+          ? '/hi'
+          : `/hi${currentPath}`
+        : rawUrlPath;
+    return resolveRouteSeoAndHtml(effectivePath, DEFAULT_PUBLIC_ORIGIN, {
+      settings,
+      websiteConfig,
+      paymentSettings,
+      categories,
+      products,
+      cakeDesigns,
+      customPages,
+      deliveryZones,
+    });
+  }, [
+    rawUrlPath,
+    currentPath,
+    lang,
+    settings,
+    websiteConfig,
+    paymentSettings,
+    categories,
+    products,
+    cakeDesigns,
+    customPages,
+    deliveryZones,
+  ]);
+
+  useEffect(() => {
+    document.documentElement.lang = currentSeoState.htmlLang;
+    document.title = currentSeoState.title;
+
+    const setMetaTag = (attr: 'name' | 'property', key: string, content: string) => {
+      let el = document.head.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    setMetaTag('name', 'description', currentSeoState.description);
+    setMetaTag('name', 'robots', currentSeoState.robots);
+    setMetaTag('property', 'og:type', currentSeoState.ogType);
+    setMetaTag('property', 'og:title', currentSeoState.title);
+    setMetaTag('property', 'og:description', currentSeoState.description);
+    setMetaTag('property', 'og:url', currentSeoState.canonicalUrl);
+    setMetaTag('property', 'og:image', currentSeoState.ogImage);
+    setMetaTag('name', 'twitter:title', currentSeoState.title);
+    setMetaTag('name', 'twitter:description', currentSeoState.description);
+    setMetaTag('name', 'twitter:image', currentSeoState.ogImage);
+
+    let canonicalEl = document.head.querySelector(
+      'link[rel="canonical"]'
+    ) as HTMLLinkElement | null;
+    if (!canonicalEl) {
+      canonicalEl = document.createElement('link');
+      canonicalEl.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonicalEl);
     }
-  }, [currentPath, activePdpProduct, routeCategorySlug, categories, settings.businessName]);
+    canonicalEl.setAttribute('href', currentSeoState.canonicalUrl);
+
+    const jsonLdEl = document.getElementById('loveys-jsonld');
+    if (jsonLdEl) {
+      jsonLdEl.textContent = JSON.stringify(currentSeoState.jsonLdGraph);
+    }
+  }, [currentSeoState]);
+
+  const aeoQuestions = useMemo(
+    () =>
+      buildVerifiedAeoQuestions({
+        settings,
+        websiteConfig,
+        paymentSettings,
+        categories,
+        products,
+        cakeDesigns,
+        customPages,
+        deliveryZones,
+      }),
+    [
+      settings,
+      websiteConfig,
+      paymentSettings,
+      categories,
+      products,
+      cakeDesigns,
+      customPages,
+      deliveryZones,
+    ]
+  );
 
   const cartTotalCount = cart.reduce((acc, i) => acc + i.quantity, 0);
 
@@ -1299,7 +1432,29 @@ export default function App() {
               </a>
               <button
                 type="button"
-                onClick={() => setLang((prev) => (prev === 'en' ? 'hi' : 'en'))}
+                onClick={() => {
+                  const nextLang = lang === 'en' ? 'hi' : 'en';
+                  setLang(nextLang);
+                  const bilingualPaths = [
+                    '/',
+                    '/menu',
+                    '/cakes',
+                    '/custom-cake',
+                    '/gallery',
+                    '/about',
+                    '/contact',
+                  ];
+                  if (bilingualPaths.includes(currentPath)) {
+                    const nextUrl =
+                      nextLang === 'hi'
+                        ? currentPath === '/'
+                          ? '/hi'
+                          : `/hi${currentPath}`
+                        : currentPath;
+                    window.history.pushState({}, '', nextUrl);
+                    setRawUrlPath(nextUrl);
+                  }
+                }}
                 className="px-2 py-0.5 rounded bg-white/15 hover:bg-white/25 text-[11px] font-semibold"
               >
                 {lang === 'en' ? 'EN · हिंदी' : 'हिंदी · EN'}
@@ -1311,84 +1466,108 @@ export default function App() {
 
       {/* 2. TOP NAVIGATION BAR (3-Zone Contract: Brand Left, Links Center, Search/AI/Cart Right) */}
       <header className="sticky top-0 z-40 bg-[#FFF8F1]/95 backdrop-blur-md border-b border-[#E6D7C8]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 sm:gap-4">
           {/* Zone 1: Brand Identity */}
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="text-left group shrink-0"
+          <a
+            href={lang === 'hi' ? '/hi' : '/'}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(lang === 'hi' ? '/hi' : '/');
+            }}
+            className="text-left group min-w-0"
           >
-            <span className="block font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#3B2824] group-hover:text-[#B94E62] transition-colors">
+            <span className="block font-serif text-xl sm:text-3xl font-bold tracking-tight text-[#3B2824] group-hover:text-[#B94E62] transition-colors truncate">
               LOVEY&apos;S
             </span>
-            <span className="block text-[10px] uppercase tracking-[0.18em] text-[#6B544E] font-semibold">
+            <span className="block text-[9px] sm:text-[10px] uppercase tracking-[0.14em] sm:tracking-[0.18em] text-[#6B544E] font-semibold truncate">
               {lang === 'hi' ? 'लवी’स बेकरी & पिज्जा कॉर्नर्स' : 'Bakery & Pizza Corners · Renukoot'}
             </span>
-          </button>
+          </a>
 
-          {/* Zone 2: Primary Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-7 xl:gap-8 text-sm font-medium text-[#3B2824]">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
+          {/* Zone 2: Primary Navigation Links (Crawlable HTML Anchors) */}
+          <nav aria-label="Main Navigation" className="hidden lg:flex items-center gap-7 xl:gap-8 text-sm font-medium text-[#3B2824]">
+            <a
+              href={lang === 'hi' ? '/hi' : '/'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi' : '/');
+              }}
               className={`hover:text-[#B94E62] transition-colors whitespace-nowrap ${
                 currentPath === '/' ? 'text-[#B94E62] font-semibold' : ''
               }`}
             >
               {lang === 'hi' ? 'होम' : 'Home'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/menu')}
+            </a>
+            <a
+              href={lang === 'hi' ? '/hi/menu' : '/menu'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi/menu' : '/menu');
+              }}
               className={`hover:text-[#B94E62] transition-colors whitespace-nowrap ${
                 currentPath.startsWith('/menu') ? 'text-[#B94E62] font-semibold' : ''
               }`}
             >
               {lang === 'hi' ? 'मेनू' : 'Explore Menu'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/cakes')}
+            </a>
+            <a
+              href={lang === 'hi' ? '/hi/cakes' : '/cakes'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi/cakes' : '/cakes');
+              }}
               className={`hover:text-[#B94E62] transition-colors whitespace-nowrap ${
                 currentPath.startsWith('/cakes') ? 'text-[#B94E62] font-semibold' : ''
               }`}
             >
               {lang === 'hi' ? 'केक' : 'Cakes'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/gallery')}
+            </a>
+            <a
+              href={lang === 'hi' ? '/hi/gallery' : '/gallery'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi/gallery' : '/gallery');
+              }}
               className={`hover:text-[#B94E62] transition-colors whitespace-nowrap ${
                 currentPath === '/gallery' ? 'text-[#B94E62] font-semibold' : ''
               }`}
             >
               {lang === 'hi' ? 'गैलरी' : 'Gallery'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/about')}
+            </a>
+            <a
+              href={lang === 'hi' ? '/hi/about' : '/about'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi/about' : '/about');
+              }}
               className={`hover:text-[#B94E62] transition-colors whitespace-nowrap ${
                 currentPath === '/about' ? 'text-[#B94E62] font-semibold' : ''
               }`}
             >
               {lang === 'hi' ? 'हमारी कहानी' : 'Our Story'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/contact')}
+            </a>
+            <a
+              href={lang === 'hi' ? '/hi/contact' : '/contact'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi/contact' : '/contact');
+              }}
               className={`hover:text-[#B94E62] transition-colors whitespace-nowrap ${
                 currentPath === '/contact' ? 'text-[#B94E62] font-semibold' : ''
               }`}
             >
               {lang === 'hi' ? 'संपर्क' : 'Contact'}
-            </button>
+            </a>
           </nav>
 
           {/* Zone 3: Custom Cake CTA, Track Order & Cart */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => navigate('/custom-cake')}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <a
+              href={lang === 'hi' ? '/hi/custom-cake' : '/custom-cake'}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(lang === 'hi' ? '/hi/custom-cake' : '/custom-cake');
+              }}
               className={`hidden sm:inline-flex px-3.5 py-2 rounded-xl text-xs font-semibold items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors ${
                 currentPath === '/custom-cake'
                   ? 'bg-[#E6D7C8] text-[#3B2824] ring-1 ring-[#B94E62]/40'
@@ -1397,27 +1576,33 @@ export default function App() {
             >
               <Cake className="w-3.5 h-3.5 text-[#B94E62]" />
               <span>{lang === 'hi' ? 'कस्टम केक' : 'Custom Cake'}</span>
-            </button>
+            </a>
 
-            <button
-              type="button"
-              onClick={() => navigate('/track-order')}
+            <a
+              href="/track-order"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/track-order');
+              }}
               className="hidden sm:inline-flex px-3 py-2 rounded-xl border border-[#E6D7C8] hover:bg-[#F5EBE1] text-xs font-semibold whitespace-nowrap shrink-0"
             >
               Track Order
-            </button>
+            </a>
 
-            <button
-              type="button"
-              onClick={() => navigate('/cart')}
-              className="px-4 py-2.5 rounded-xl bg-[#3B2824] hover:bg-[#B94E62] text-[#FFF8F1] text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
+            <a
+              href="/cart"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/cart');
+              }}
+              className="px-3 sm:px-4 py-2.5 rounded-xl bg-[#3B2824] hover:bg-[#B94E62] text-[#FFF8F1] text-xs font-semibold flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 transition-colors"
             >
               <ShoppingBag className="w-4 h-4" />
               <span>Cart</span>
               <span className="px-1.5 py-0.5 rounded-md bg-white/15 font-mono-num text-[11px]">
                 {cartTotalCount}
               </span>
-            </button>
+            </a>
 
             <button
               type="button"
@@ -1432,47 +1617,50 @@ export default function App() {
 
         {/* Mobile Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-b border-[#E6D7C8] px-4 py-4 space-y-1.5 text-sm font-semibold">
+          <div className="lg:hidden bg-white border-b border-[#E6D7C8] px-4 py-4 space-y-1.5 text-sm font-semibold max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain">
             {[
-              { path: '/', label: lang === 'hi' ? 'होम' : 'Home' },
-              { path: '/menu', label: lang === 'hi' ? 'मेनू' : 'Explore Menu' },
-              { path: '/cakes', label: lang === 'hi' ? 'केक' : 'Cakes' },
-              { path: '/gallery', label: lang === 'hi' ? 'गैलरी' : 'Gallery' },
-              { path: '/about', label: lang === 'hi' ? 'हमारी कहानी' : 'Our Story' },
-              { path: '/contact', label: lang === 'hi' ? 'संपर्क' : 'Contact' },
-              { path: '/track-order', label: 'Track Order' },
-              { path: '/admin/login', label: 'Business Admin / Staff Login' },
+              { path: lang === 'hi' ? '/hi' : '/', base: '/', label: lang === 'hi' ? 'होम' : 'Home' },
+              { path: lang === 'hi' ? '/hi/menu' : '/menu', base: '/menu', label: lang === 'hi' ? 'मेनू' : 'Explore Menu' },
+              { path: lang === 'hi' ? '/hi/cakes' : '/cakes', base: '/cakes', label: lang === 'hi' ? 'केक' : 'Cakes' },
+              { path: lang === 'hi' ? '/hi/gallery' : '/gallery', base: '/gallery', label: lang === 'hi' ? 'गैलरी' : 'Gallery' },
+              { path: lang === 'hi' ? '/hi/about' : '/about', base: '/about', label: lang === 'hi' ? 'हमारी कहानी' : 'Our Story' },
+              { path: lang === 'hi' ? '/hi/contact' : '/contact', base: '/contact', label: lang === 'hi' ? 'संपर्क' : 'Contact' },
+              { path: '/cake-ordering-guide', base: '/cake-ordering-guide', label: 'Cake Weight & Ordering Guide' },
+              { path: '/track-order', base: '/track-order', label: 'Track Order' },
+              { path: '/admin/login', base: '/admin/login', label: 'Business Admin / Staff Login' },
             ].map((lnk) => (
-              <button
+              <a
                 key={lnk.path}
-                type="button"
-                onClick={() => {
+                href={lnk.path}
+                onClick={(e) => {
+                  e.preventDefault();
                   setMobileMenuOpen(false);
                   navigate(lnk.path);
                 }}
                 className={`block w-full text-left py-2 px-3 rounded-xl transition-colors ${
-                  currentPath === lnk.path
+                  currentPath === lnk.base
                     ? 'bg-[#F5EBE1] text-[#B94E62]'
                     : 'hover:bg-[#F5EBE1] text-[#3B2824]'
                 }`}
               >
                 {lnk.label}
-              </button>
+              </a>
             ))}
 
             {/* Highlighted Custom Cake CTA Button for Mobile Screens (< sm where header CTA is hidden) */}
             <div className="sm:hidden pt-2 border-t border-[#E6D7C8]">
-              <button
-                type="button"
-                onClick={() => {
+              <a
+                href={lang === 'hi' ? '/hi/custom-cake' : '/custom-cake'}
+                onClick={(e) => {
+                  e.preventDefault();
                   setMobileMenuOpen(false);
-                  navigate('/custom-cake');
+                  navigate(lang === 'hi' ? '/hi/custom-cake' : '/custom-cake');
                 }}
                 className="w-full px-4 py-2.5 rounded-xl bg-[#F5EBE1] hover:bg-[#E6D7C8] text-[#3B2824] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
               >
                 <Cake className="w-4 h-4 text-[#B94E62]" />
                 <span>{lang === 'hi' ? 'कस्टम केक' : 'Custom Cake'}</span>
-              </button>
+              </a>
             </div>
           </div>
         )}
@@ -1480,16 +1668,21 @@ export default function App() {
 
       {/* Floating Cart Toast Notification */}
       {cartFeedbackBanner && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#3B2824] text-[#FFF8F1] px-5 py-3.5 rounded-2xl shadow-xl border border-[#E5B867]/40 flex items-center gap-3">
-          <CheckCircle2 className="w-4 h-4 text-[#E5B867] shrink-0" />
-          <span className="text-xs font-medium">{cartFeedbackBanner}</span>
-          <button
-            type="button"
-            onClick={() => navigate('/cart')}
-            className="text-xs font-bold text-[#E5B867] underline ml-2 whitespace-nowrap"
+        <div className="fixed bottom-20 sm:bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 max-w-md bg-[#3B2824] text-[#FFF8F1] px-4 sm:px-5 py-3.5 rounded-2xl shadow-xl border border-[#E5B867]/40 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <CheckCircle2 className="w-4 h-4 text-[#E5B867] shrink-0" />
+            <span className="text-xs font-medium truncate">{cartFeedbackBanner}</span>
+          </div>
+          <a
+            href="/cart"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('/cart');
+            }}
+            className="text-xs font-bold text-[#E5B867] underline whitespace-nowrap shrink-0"
           >
             View Cart
-          </button>
+          </a>
         </div>
       )}
 
@@ -1538,16 +1731,17 @@ export default function App() {
             </div>
             <div className="px-6 py-3.5 bg-[#1E1412] border-t border-[#3B2824] flex flex-wrap items-center justify-between gap-3 text-xs text-[#D7C4B7]">
               <span>{lightboxAsset.altText || lightboxAsset.title}</span>
-              <button
-                type="button"
-                onClick={() => {
+              <a
+                href="/custom-cake"
+                onClick={(e) => {
+                  e.preventDefault();
                   setLightboxAsset(null);
                   navigate('/custom-cake');
                 }}
                 className="px-4 py-2 rounded-xl bg-[#B94E62] hover:bg-[#9E3D50] text-white font-semibold"
               >
                 Customise a Similar Cake &rarr;
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -1558,9 +1752,156 @@ export default function App() {
       {/* ==================================================================== */}
       <main className="flex-1">
         {/* ------------------------------------------------------------------ */}
-        {/* VIEW A: PRODUCT DETAIL PAGE (/menu/[slug] or /cakes/[slug]) */}
+        {/* VIEW 404: GENUINE NOT FOUND PAGE (PREVENT SOFT-404s) */}
         {/* ------------------------------------------------------------------ */}
-        {activePdpProduct ? (
+        {currentSeoState.httpStatus === 404 ? (
+          <section className="max-w-4xl mx-auto px-4 sm:px-6 py-20">
+            <div className="bg-white border border-[#E6D7C8] rounded-3xl p-8 sm:p-12 text-center space-y-5 shadow-xs">
+              <span className="inline-block px-3.5 py-1 rounded-xl bg-[#FFF5F5] border border-[#B94E62]/30 text-xs font-bold uppercase tracking-widest text-[#B94E62]">
+                HTTP 404 · Page Not Found
+              </span>
+              <h1 className="font-serif text-3xl sm:text-5xl font-bold text-[#3B2824]">
+                {lang === 'hi'
+                  ? 'यह पेज या प्रोडक्ट उपलब्ध नहीं है'
+                  : 'We Could Not Find That Page or Product'}
+              </h1>
+              <p className="text-sm text-[#6B544E] max-w-xl mx-auto leading-relaxed">
+                {lang === 'hi'
+                  ? "आपके द्वारा खोजा गया URL लवी'स बेकरी & पिज्जा कॉर्नर्स, रेणुकूट पर मौजूद नहीं है। कृपया नीचे दिए गए लिंक्स से मेनू या कस्टम केक स्टूडियो देखें।"
+                  : "The requested URL does not match any active page, category, or product at Lovey's Bakery & Pizza Corners, Renukoot."}
+              </p>
+              <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href="/"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/');
+                  }}
+                  className="px-5 py-3 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold hover:bg-[#B94E62] transition-colors"
+                >
+                  Return to Homepage
+                </a>
+                <a
+                  href="/menu"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/menu');
+                  }}
+                  className="px-5 py-3 rounded-xl bg-[#B94E62] text-white text-xs font-semibold hover:bg-[#9E3D50] transition-colors"
+                >
+                  Explore Bakery &amp; Pizza Menu
+                </a>
+                <a
+                  href="/custom-cake"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/custom-cake');
+                  }}
+                  className="px-5 py-3 rounded-xl border border-[#3B2824] text-[#3B2824] text-xs font-semibold hover:bg-[#F5EBE1] transition-colors"
+                >
+                  Custom Cake Studio
+                </a>
+              </div>
+            </div>
+          </section>
+        ) : activePdpCakeDesign && !activePdpProduct ? (
+          /* ------------------------------------------------------------------ */
+          /* VIEW A0: CAKE DESIGN DETAIL PAGE (/cakes/[design-slug]) */
+          /* ------------------------------------------------------------------ */
+          <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#6B544E]">
+              <a
+                href="/"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/');
+                }}
+                className="hover:text-[#B94E62]"
+              >
+                Home
+              </a>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <a
+                href="/cakes"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/cakes');
+                }}
+                className="hover:text-[#B94E62]"
+              >
+                Cakes
+              </a>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-[#3B2824] font-semibold">
+                {activePdpCakeDesign.name || activePdpCakeDesign.title}
+              </span>
+            </nav>
+
+            <div className="bg-white border border-[#E6D7C8] rounded-3xl p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center shadow-xs">
+              <div className="lg:col-span-6 aspect-4/3 rounded-2xl overflow-hidden bg-[#F5EBE1] border border-[#E6D7C8]">
+                <img
+                  src={activePdpCakeDesign.imageUrl}
+                  alt={
+                    activePdpCakeDesign.imageAlt ||
+                    activePdpCakeDesign.name ||
+                    activePdpCakeDesign.title ||
+                    'Custom Cake Design'
+                  }
+                  width={1200}
+                  height={900}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="lg:col-span-6 space-y-4">
+                <p className="text-xs uppercase tracking-widest text-[#B94E62] font-semibold">
+                  {activePdpCakeDesign.theme || 'Custom Celebration Design'}
+                </p>
+                <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#3B2824]">
+                  {activePdpCakeDesign.name || activePdpCakeDesign.title}
+                </h1>
+                <p className="text-sm text-[#6B544E] leading-relaxed">
+                  {activePdpCakeDesign.description}
+                </p>
+                <div className="p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8] text-xs space-y-1.5">
+                  <p>
+                    <strong>Available Weights:</strong>{' '}
+                    {activePdpCakeDesign.weightsAllowed || '0.5 kg to 5.0 kg'}
+                  </p>
+                  <p>
+                    <strong>Available Flavours:</strong>{' '}
+                    {activePdpCakeDesign.flavoursAllowed || 'Customizable in Studio'}
+                  </p>
+                  <p>
+                    <strong>Recommended Advance Notice:</strong>{' '}
+                    {activePdpCakeDesign.advanceBookingHours || 12} hours
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap gap-3">
+                  <a
+                    href="/custom-cake"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate('/custom-cake');
+                    }}
+                    className="px-6 py-3.5 rounded-xl bg-[#B94E62] hover:bg-[#9E3D50] text-white text-xs font-semibold"
+                  >
+                    Customise &amp; Order This Design in Studio &rarr;
+                  </a>
+                  <a
+                    href="/cakes"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate('/cakes');
+                    }}
+                    className="px-5 py-3.5 rounded-xl border border-[#3B2824] text-[#3B2824] text-xs font-semibold"
+                  >
+                    Back to Cakes Catalogue
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : activePdpProduct ? (
           <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             {(() => {
               const sizeOptions = parseVariantOptions(activePdpProduct.variantsSummary);
@@ -1885,9 +2226,9 @@ export default function App() {
                               quantity: pdpQuantity,
                             });
                           }}
-                          className="flex-1 py-3.5 px-5 rounded-xl bg-[#B94E62] hover:bg-[#9E3D50] disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                           className="flex-1 min-w-[165px] py-3.5 px-4 sm:px-5 rounded-xl bg-[#B94E62] hover:bg-[#9E3D50] disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
                         >
-                          <ShoppingBag className="w-4 h-4" />
+                          <ShoppingBag className="w-4 h-4 shrink-0" />
                           <span>
                             {activePdpProduct.isAvailable
                               ? `Add to Cart · ₹${computedUnitPrice * pdpQuantity}`
@@ -1925,7 +2266,7 @@ export default function App() {
                               });
                               navigate('/checkout');
                             }}
-                            className="py-3.5 px-5 rounded-xl bg-[#3B2824] hover:bg-[#523934] text-[#FFF8F1] text-sm font-semibold transition-colors whitespace-nowrap"
+                            className="w-full sm:w-auto py-3.5 px-5 rounded-xl bg-[#3B2824] hover:bg-[#523934] text-[#FFF8F1] text-sm font-semibold transition-colors whitespace-nowrap"
                           >
                             Buy Now &rarr;
                           </button>
@@ -2467,8 +2808,8 @@ export default function App() {
                             referrerPolicy="no-referrer"
                             className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#E6D7C8]"
                           />
-                          <div className="space-y-1 text-xs">
-                            <h3 className="font-serif text-base font-bold text-[#3B2824]">
+                          <div className="space-y-1 text-xs min-w-0">
+                            <h3 className="font-serif text-base font-bold text-[#3B2824] break-words">
                               {item.name}
                             </h3>
                             <p className="text-[#6B544E]">
@@ -2861,12 +3202,12 @@ export default function App() {
                           value={couponInput}
                           onChange={(e) => setCouponInput(e.target.value)}
                           placeholder="Enter code"
-                          className="flex-1 px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] text-xs uppercase font-mono-num"
+                          className="flex-1 min-w-0 px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] text-xs uppercase font-mono-num"
                         />
                         <button
                           type="button"
                           onClick={handleApplyCoupon}
-                          className="px-4 py-2 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold"
+                          className="px-4 py-2 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold shrink-0"
                         >
                           Apply
                         </button>
@@ -2996,19 +3337,19 @@ export default function App() {
                   e.preventDefault();
                   fetchOrderSummaryByNumber(trackInputNumber);
                 }}
-                className="flex gap-2"
+                className="flex flex-col sm:flex-row gap-2"
               >
                 <input
                   type="text"
                   value={trackInputNumber}
                   onChange={(e) => setTrackInputNumber(e.target.value)}
                   placeholder="Enter Order Number (e.g. LVY-261120-4821)"
-                  className="flex-1 px-4 py-3 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] text-xs font-mono-num uppercase"
+                  className="flex-1 min-w-0 px-4 py-3 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] text-xs font-mono-num uppercase"
                 />
                 <button
                   type="submit"
                   disabled={trackLoading}
-                  className="px-5 py-3 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold"
+                  className="px-5 py-3 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold shrink-0"
                 >
                   {trackLoading ? 'Checking...' : 'Track Status'}
                 </button>
@@ -3472,29 +3813,39 @@ export default function App() {
                       className="group bg-white border border-[#E6D7C8] rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-md transition-shadow"
                     >
                       <div>
-                        <div
-                          onClick={() => navigate(`/menu/${prod.slug}`)}
-                          className="aspect-4/3 overflow-hidden bg-[#F5EBE1] cursor-pointer relative"
+                        <a
+                          href={`/menu/${prod.slug}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigate(`/menu/${prod.slug}`);
+                          }}
+                          className="block aspect-4/3 overflow-hidden bg-[#F5EBE1] cursor-pointer relative"
                         >
                           <img
                             src={prod.imageUrl}
-                            alt={prod.name}
+                            alt={prod.imageAlt || `${prod.name} at Lovey's Bakery & Pizza Corners, Renukoot`}
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
-                        </div>
+                        </a>
                         <div className="p-5 space-y-2">
                           <p className="text-[11px] uppercase tracking-wider font-semibold text-[#B94E62]">
                             {prod.categoryName || prod.categorySlug} · {prod.isEggless ? '100% Eggless' : 'Artisan'}
                             {prod.isBestseller ? ' · Bestseller' : ''}
                           </p>
-                          <h3
-                            onClick={() => navigate(`/menu/${prod.slug}`)}
-                            className="font-serif text-xl font-bold text-[#3B2824] group-hover:text-[#B94E62] cursor-pointer"
-                          >
-                            {lang === 'hi' && (prod.nameHi || prod.hindiName)
-                              ? prod.nameHi || prod.hindiName
-                              : prod.name}
+                          <h3 className="font-serif text-xl font-bold text-[#3B2824] group-hover:text-[#B94E62]">
+                            <a
+                              href={`/menu/${prod.slug}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navigate(`/menu/${prod.slug}`);
+                              }}
+                              className="hover:underline"
+                            >
+                              {lang === 'hi' && (prod.nameHi || prod.hindiName)
+                                ? prod.nameHi || prod.hindiName
+                                : prod.name}
+                            </a>
                           </h3>
                           <p className="text-xs text-[#6B544E] line-clamp-2 leading-relaxed">
                             {prod.shortDescription || prod.description}
@@ -3513,13 +3864,16 @@ export default function App() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/menu/${prod.slug}`)}
+                          <a
+                            href={`/menu/${prod.slug}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate(`/menu/${prod.slug}`);
+                            }}
                             className="px-3.5 py-2 rounded-xl border border-[#3B2824] text-[#3B2824] text-xs font-semibold hover:bg-[#F5EBE1] whitespace-nowrap"
                           >
                             {hasMultiVariants ? 'Select Size & Flavour' : 'Customize'}
-                          </button>
+                          </a>
                           <button
                             type="button"
                             onClick={() =>
@@ -3586,7 +3940,7 @@ export default function App() {
                     </p>
                   </div>
 
-                  <h1 className="font-serif text-4xl sm:text-6xl lg:text-[4.15rem] font-bold leading-[1.05] tracking-tight text-[#FFF8F1]">
+                  <h1 className="font-serif text-3xl sm:text-6xl lg:text-[4.15rem] font-bold leading-[1.08] sm:leading-[1.05] tracking-tight text-[#FFF8F1] break-words">
                     {websiteConfig.heroHeading || 'Made to Make Every Moment Sweeter.'}
                   </h1>
 
@@ -3601,11 +3955,11 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-4 pt-2">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2">
                     <button
                       type="button"
                       onClick={() => navigate(websiteConfig.primaryCtaLink || '/menu')}
-                      className="px-7 py-4 rounded-2xl bg-[#B94E62] hover:bg-[#9E3D50] text-white text-sm font-semibold transition-all whitespace-nowrap shrink-0 shadow-lg flex items-center gap-2.5"
+                      className="w-full sm:w-auto justify-center px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-[#B94E62] hover:bg-[#9E3D50] text-white text-sm font-semibold transition-all whitespace-nowrap shrink-0 shadow-lg flex items-center gap-2.5"
                     >
                       <span>{websiteConfig.primaryCtaText || 'Explore Our Collection'}</span>
                       <ArrowRight className="w-4 h-4" />
@@ -3613,7 +3967,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => navigate(websiteConfig.secondaryCtaLink || '/custom-cake')}
-                      className="px-7 py-4 rounded-2xl bg-[#FFF8F1] hover:bg-[#E5B867] text-[#3B2824] text-sm font-semibold transition-all whitespace-nowrap shrink-0"
+                      className="w-full sm:w-auto justify-center px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-[#FFF8F1] hover:bg-[#E5B867] text-[#3B2824] text-sm font-semibold transition-all whitespace-nowrap shrink-0 flex items-center"
                     >
                       {websiteConfig.secondaryCtaText || 'Customise Your Cake'}
                     </button>
@@ -3754,15 +4108,18 @@ export default function App() {
                     ).length;
 
                     return (
-                      <button
+                      <a
                         key={cat.id}
-                        type="button"
-                        onClick={() => navigate(`/categories/${cat.slug}`)}
-                        className={`${colSpanClass} group relative rounded-3xl overflow-hidden border border-[#E6D7C8] bg-[#281B18] text-left h-72 sm:h-80 shadow-xs hover:shadow-xl transition-all duration-500`}
+                        href={`/categories/${cat.slug}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate(`/categories/${cat.slug}`);
+                        }}
+                        className={`${colSpanClass} block group relative rounded-3xl overflow-hidden border border-[#E6D7C8] bg-[#281B18] text-left h-72 sm:h-80 shadow-xs hover:shadow-xl transition-all duration-500`}
                       >
                         <img
                           src={cat.imageUrl}
-                          alt={cat.name}
+                          alt={cat.imageAlt || `${cat.name} at Lovey's Bakery & Pizza Corners, Renukoot`}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                         />
@@ -3794,7 +4151,7 @@ export default function App() {
                             </span>
                           </div>
                         </div>
-                      </button>
+                      </a>
                     );
                   })}
               </div>
@@ -3975,17 +4332,21 @@ export default function App() {
                         className="group bg-white border border-[#E6D7C8] rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
                       >
                         <div>
-                          <div
-                            onClick={() => navigate(`/menu/${prod.slug}`)}
-                            className="aspect-4/3 overflow-hidden bg-[#F5EBE1] cursor-pointer relative"
+                          <a
+                            href={`/menu/${prod.slug}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate(`/menu/${prod.slug}`);
+                            }}
+                            className="block aspect-4/3 overflow-hidden bg-[#F5EBE1] cursor-pointer relative"
                           >
                             <img
                               src={prod.imageUrl}
-                              alt={prod.name}
+                              alt={prod.imageAlt || `${prod.name} at Lovey's Bakery & Pizza Corners, Renukoot`}
                               referrerPolicy="no-referrer"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
-                          </div>
+                          </a>
                           <div className="p-6 space-y-2.5">
                             {/* Unboxed Metadata Line */}
                             <p className="text-[11px] uppercase tracking-wider font-semibold text-[#B94E62]">
@@ -3994,13 +4355,19 @@ export default function App() {
                               {prod.isAvailable ? 'In Stock' : 'Sold Out'}
                             </p>
 
-                            <h3
-                              onClick={() => navigate(`/menu/${prod.slug}`)}
-                              className="font-serif text-xl sm:text-2xl font-bold text-[#3B2824] group-hover:text-[#B94E62] cursor-pointer transition-colors"
-                            >
-                              {lang === 'hi' && (prod.nameHi || prod.hindiName)
-                                ? prod.nameHi || prod.hindiName
-                                : prod.name}
+                            <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#3B2824] group-hover:text-[#B94E62] transition-colors">
+                              <a
+                                href={`/menu/${prod.slug}`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  navigate(`/menu/${prod.slug}`);
+                                }}
+                                className="hover:underline"
+                              >
+                                {lang === 'hi' && (prod.nameHi || prod.hindiName)
+                                  ? prod.nameHi || prod.hindiName
+                                  : prod.name}
+                              </a>
                             </h3>
 
                             <p className="text-xs text-[#6B544E] line-clamp-2 leading-relaxed">
@@ -4337,6 +4704,76 @@ export default function App() {
             </section>
 
             {/* ============================================================== */}
+            {/* SECTION I0 — AEO & LOCAL CUSTOMER QUESTIONS IN RENUKOOT */}
+            {/* ============================================================== */}
+            <section
+              aria-labelledby="homepage-aeo-heading"
+              className="max-w-[1440px] mx-auto px-4 sm:px-8 space-y-8"
+            >
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#E6D7C8] pb-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-[#B94E62] font-semibold mb-1.5">
+                    {lang === 'hi'
+                      ? 'रेणुकूट ग्राहक सहायता और ऑर्डर जानकारी'
+                      : 'Local Ordering & Customer Answers · Renukoot, Sonbhadra'}
+                  </p>
+                  <h2
+                    id="homepage-aeo-heading"
+                    className="font-serif text-3xl sm:text-5xl font-bold text-[#3B2824]"
+                  >
+                    {lang === 'hi'
+                      ? 'अक्सर पूछे जाने वाले प्रश्न (कस्टम केक, डिलीवरी और UPI पेमेंट)'
+                      : 'Common Questions About Custom Cakes, Delivery & UPI Advance'}
+                  </h2>
+                </div>
+                <a
+                  href="/cake-ordering-guide"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/cake-ordering-guide');
+                  }}
+                  className="text-xs sm:text-sm font-bold text-[#B94E62] hover:underline flex items-center gap-1.5"
+                >
+                  <span>
+                    {lang === 'hi'
+                      ? 'पूरी केक वेट और ऑर्डरिंग गाइड पढ़ें'
+                      : 'Read Complete Cake Weight & Ordering Guide'}
+                  </span>
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {aeoQuestions.map((q) => (
+                  <article
+                    key={q.id}
+                    className="bg-white border border-[#E6D7C8] rounded-3xl p-6 space-y-3 shadow-2xs"
+                  >
+                    <h3 className="font-serif text-xl font-bold text-[#3B2824]">
+                      {lang === 'hi' ? q.questionHi : q.question}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[#6B544E] leading-relaxed">
+                      {lang === 'hi' ? q.answerHi : q.answer}
+                    </p>
+                    <div className="pt-1">
+                      <a
+                        href={q.linkHref}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate(q.linkHref);
+                        }}
+                        className="text-xs font-bold text-[#B94E62] hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>{q.linkText}</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            {/* ============================================================== */}
             {/* SECTION I — LOCATION & CONTACT */}
             {/* ============================================================== */}
             <section className="max-w-[1440px] mx-auto px-4 sm:px-8 space-y-10">
@@ -4346,6 +4783,11 @@ export default function App() {
                 whatsapp={settings.whatsapp}
                 openingHours={settings.openingHours}
                 googleMapsUrl={settings.googleMapsUrl}
+                googleReviewUrl={settings.googleReviewUrl}
+                coordinatesLat={settings.coordinatesLat}
+                coordinatesLng={settings.coordinatesLng}
+                coordinatesVerifiedByOwner={settings.coordinatesVerifiedByOwner}
+                openingHoursVerifiedByOwner={settings.openingHoursVerifiedByOwner}
               />
 
               {/* Final Call-to-Action Banner */}
@@ -4359,13 +4801,16 @@ export default function App() {
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/menu')}
+                  <a
+                    href="/menu"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate('/menu');
+                    }}
                     className="px-6 py-3.5 rounded-2xl bg-[#B94E62] hover:bg-[#9E3D50] text-white text-xs sm:text-sm font-semibold transition-colors"
                   >
                     Order from Menu
-                  </button>
+                  </a>
                   <a
                     href={`https://wa.me/${settings.whatsapp.replace(/[^\d]/g, '')}?text=${encodeURIComponent(
                       "Hello Lovey's Bakery & Pizza Corners! I would like to place an order."
@@ -4402,14 +4847,17 @@ export default function App() {
               Subtotal: ₹{cartCalculations.subtotal}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate('/cart')}
+          <a
+            href="/cart"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('/cart');
+            }}
             className="px-5 py-2.5 rounded-xl bg-[#B94E62] text-white text-xs font-semibold flex items-center gap-1.5"
           >
             <span>Proceed to Cart</span>
             <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          </a>
         </div>
       )}
 
@@ -4440,7 +4888,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Col 2: Quick Links */}
+          {/* Col 2: Quick Links (Crawlable HTML Anchors) */}
           <div className="lg:col-span-2 space-y-2.5 text-xs">
             <p className="font-bold uppercase tracking-wider text-[#E5B867] mb-2">
               Quick Links
@@ -4450,39 +4898,46 @@ export default function App() {
               { path: '/menu', label: 'Explore Full Menu' },
               { path: '/cakes', label: 'Celebration Cakes' },
               { path: '/custom-cake', label: 'Custom Cake Studio' },
+              { path: '/cake-ordering-guide', label: 'Cake Weight & Ordering Guide' },
               { path: '/gallery', label: 'Photo & Video Gallery' },
               { path: '/about', label: 'Our Story' },
               { path: '/track-order', label: 'Track Your Order' },
               { path: '/contact', label: 'Location & Contact' },
             ].map((l) => (
-              <button
+              <a
                 key={l.path}
-                type="button"
-                onClick={() => navigate(l.path)}
+                href={l.path}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(l.path);
+                }}
                 className="block text-[#D7C4B7] hover:text-white transition-colors"
               >
                 {l.label}
-              </button>
+              </a>
             ))}
           </div>
 
-          {/* Col 3: Menu Categories */}
+          {/* Col 3: Menu Categories (Crawlable HTML Anchors) */}
           <div className="lg:col-span-3 space-y-2.5 text-xs">
             <p className="font-bold uppercase tracking-wider text-[#E5B867] mb-2">
               Menu Categories
             </p>
             {categories
               .filter((c) => c.isActive)
-              .slice(0, 7)
+              .slice(0, 8)
               .map((cat) => (
-                <button
+                <a
                   key={cat.id}
-                  type="button"
-                  onClick={() => navigate(`/categories/${cat.slug}`)}
+                  href={`/categories/${cat.slug}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(`/categories/${cat.slug}`);
+                  }}
                   className="block text-[#D7C4B7] hover:text-white transition-colors text-left"
                 >
                   {cat.name}
-                </button>
+                </a>
               ))}
           </div>
 
@@ -4528,16 +4983,20 @@ export default function App() {
                 { path: '/cancellation-policy', label: 'Cancellation & Refund Policy' },
                 { path: '/privacy-policy', label: 'Privacy Policy' },
                 { path: '/terms', label: 'Terms of Service' },
+                { path: '/hi', label: 'हिंदी संस्करण (Hindi Version)' },
                 { path: '/admin/login', label: 'Business Admin / Staff Login' },
               ].map((l) => (
-                <button
+                <a
                   key={l.path}
-                  type="button"
-                  onClick={() => navigate(l.path)}
+                  href={l.path}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(l.path);
+                  }}
                   className="block text-[#C6B1A3] hover:text-white transition-colors"
                 >
                   {l.label}
-                </button>
+                </a>
               ))}
             </div>
           </div>
@@ -4549,11 +5008,12 @@ export default function App() {
               &copy; {new Date().getFullYear()} Lovey&apos;s Bakery &amp; Pizza Corners (लवी&apos;स बेकरी &amp; पिज्जा कॉर्नर्स), Renukoot, Sonbhadra, UP 231217. All rights reserved.
             </p>
             <p className="text-[11px] text-[#E5B867]">
-              100% Eggless Celebration Cakes · Fresh Bakery · Stone-Baked Pizzas
+              Celebration Cakes · Fresh Bakery · Stone-Baked Pizzas · Renukoot
             </p>
           </div>
         </div>
       </footer>
+      <Analytics />
     </div>
   );
 }

@@ -11,7 +11,15 @@ import {
   getDownloadURL,
 } from 'firebase/storage';
 import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from 'firebase/auth';
+import {
   db,
+  auth,
   storage,
   OperationType,
   handleFirestoreError,
@@ -436,7 +444,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     INITIAL_ROLE_DEFINITIONS[0];
 
   const hasPermission = (perm: string): boolean => {
-    if ((effectiveAdminEmail || '').toLowerCase() === 'prabhve5@gmail.com') return true;
+    if (
+      currentStaffMember.roleId === 'role-owner' ||
+      (effectiveAdminEmail || '').toLowerCase() === 'prabhve5@gmail.com' ||
+      (effectiveAdminEmail || '').toLowerCase() === 'owner@loveys-demo.test'
+    ) {
+      return true;
+    }
     const summary =
       currentStaffMember.permissionsSummary || currentRoleDef.permissionsSummary || '';
     return summary
@@ -644,6 +658,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       } else {
         sessionStorage.setItem('loveys_admin_session_token', token);
       }
+
+      // Attempt non-blocking Firebase Auth Email/Password sign-in or provisioning & Firestore profile reconciliation
+      if (data.account?.email) {
+        const accountEmail = String(data.account.email);
+        const submittedPass = loginPassword;
+        (async () => {
+          try {
+            await signInWithEmailAndPassword(auth, accountEmail, submittedPass);
+          } catch (signInErr: any) {
+            if (
+              signInErr?.code === 'auth/user-not-found' ||
+              signInErr?.code === 'auth/invalid-credential'
+            ) {
+              try {
+                await createUserWithEmailAndPassword(auth, accountEmail, submittedPass);
+              } catch {
+                // Provider may not have Email/Password enabled in Firebase Console (auth/operation-not-allowed)
+              }
+            }
+          }
+          try {
+            await setDoc(doc(db, 'staff_members', data.account.id), {
+              ...data.account,
+              requirePasswordChange: Boolean(
+                data.account.requirePasswordChange || data.account.mustChangePassword
+              ),
+              mustChangePassword: Boolean(
+                data.account.requirePasswordChange || data.account.mustChangePassword
+              ),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // Non-blocking Firestore profile sync
+          }
+        })();
+      }
+
       setFirstLoginOldPassword(loginPassword);
       setLoginPassword('');
       setPasswordSessionToken(token);
@@ -776,10 +827,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
       if (data.account) {
         setPasswordAuthAccount(data.account);
+        if (onPasswordAuthSuccess) {
+          onPasswordAuthSuccess(
+            data.account,
+            data.sessionToken || passwordSessionToken
+          );
+        }
+        // Sync mustChangePassword = false to Firestore staff_members and Firebase Auth if active
+        (async () => {
+          if (
+            auth.currentUser &&
+            auth.currentUser.email &&
+            auth.currentUser.providerData.some((p) => p.providerId === 'password')
+          ) {
+            try {
+              const cred = EmailAuthProvider.credential(
+                auth.currentUser.email,
+                firstLoginOldPassword
+              );
+              await reauthenticateWithCredential(auth.currentUser, cred);
+              await updatePassword(auth.currentUser, firstLoginNewPassword);
+            } catch {
+              // ignore if Firebase Auth Email/Password provider is inactive
+            }
+          }
+          try {
+            await setDoc(doc(db, 'staff_members', data.account.id), {
+              ...data.account,
+              requirePasswordChange: false,
+              mustChangePassword: false,
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // Non-blocking Firestore sync
+          }
+        })();
       }
       setFirstLoginOldPassword('');
       setFirstLoginNewPassword('');
       setFirstLoginConfirmPassword('');
+      if (rawSubPath === 'login') {
+        onNavigate('/admin');
+      }
     } catch (err: any) {
       setLoginError(err.message || 'Failed to update initial password.');
     } finally {
@@ -790,11 +879,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // ============================================================================
   // PROTECTED PASSWORD-ONLY ADMIN LOGIN GATE (/admin/login or unauthenticated /admin/*)
   // ============================================================================
+  const requiresFirstLoginPasswordChange = Boolean(
+    passwordAuthAccount?.requirePasswordChange || passwordAuthAccount?.mustChangePassword
+  );
+
   if (
     rawSubPath === 'login' ||
     !isPasswordOrFirebaseAuthenticated ||
     currentStaffMember.status === 'suspended' ||
-    Boolean(passwordAuthAccount?.requirePasswordChange)
+    requiresFirstLoginPasswordChange
   ) {
     // Redirect unauthenticated /admin/* paths cleanly to /admin/login in the address bar
     if (
@@ -810,7 +903,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (
       isPasswordOrFirebaseAuthenticated &&
       rawSubPath === 'login' &&
-      !passwordAuthAccount?.requirePasswordChange &&
+      !requiresFirstLoginPasswordChange &&
       !urlResetToken
     ) {
       return (
@@ -856,7 +949,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <h1 className="font-serif text-3xl font-bold text-[#3B2824] mt-3">
               {urlResetToken
                 ? 'Reset Admin Password'
-                : passwordAuthAccount?.requirePasswordChange
+                : requiresFirstLoginPasswordChange
                 ? 'Set Your New Password'
                 : !ownerConfigured
                 ? 'Initial Owner Password Setup'
@@ -938,8 +1031,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {loginSubmitting ? 'Resetting Password...' : 'Save New Password & Revoke Old Sessions'}
               </button>
             </form>
-          ) : passwordAuthAccount?.requirePasswordChange ? (
-            /* CASE B: Mandatory First-Login Password Change for Newly Created Staff Account */
+          ) : requiresFirstLoginPasswordChange && passwordAuthAccount ? (
+            /* CASE B: Mandatory First-Login Password Change for Newly Created Owner / Staff Account */
             <form
               onSubmit={handleMandatoryFirstLoginPasswordChange}
               className="space-y-4 text-xs"
@@ -947,7 +1040,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="p-3 rounded-xl bg-[#FFF4E5] border border-[#B36B00]/30 text-[#B36B00]">
                 <p className="font-bold">Mandatory First-Login Password Update</p>
                 <p className="text-[11px] mt-0.5">
-                  Welcome, <strong>{passwordAuthAccount.name}</strong>. For your security, please replace your temporary initial password with a personal 12+ character password.
+                  Welcome, <strong>{passwordAuthAccount.name}</strong> ({passwordAuthAccount.email}). For your security, you must change the temporary password before accessing the dashboard.
                 </p>
               </div>
 
@@ -1127,7 +1220,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   required
                   value={forgotEmailInput}
                   onChange={(e) => setForgotEmailInput(e.target.value)}
-                  placeholder="prabhve5@gmail.com"
+                  placeholder="owner@loveys-demo.test"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
                 />
               </div>
@@ -1193,7 +1286,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   autoComplete="username"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
-                  placeholder="prabhve5@gmail.com or owner"
+                  placeholder="owner@loveys-demo.test or owner"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
                 />
               </div>
@@ -1206,7 +1299,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onClick={() => {
                       setForgotPasswordOpen(true);
                       setForgotEmailInput(
-                        loginIdentifier.includes('@') ? loginIdentifier : 'prabhve5@gmail.com'
+                        loginIdentifier.includes('@') ? loginIdentifier : 'owner@loveys-demo.test'
                       );
                       setLoginError(null);
                     }}
@@ -1469,29 +1562,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Save Product (Create or Edit with Size, Flavor, Frosting, and Add-ons)
+  // Save Product (Create or Edit with Size, Flavor, Frosting, Add-ons, Publication Status & SEO)
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
     try {
+      const pubStatus = editingProduct.publicationStatus || 'published';
+      const isPub = pubStatus === 'published' || pubStatus === 'approved';
       const toSave: ProductItem = {
         ...editingProduct,
+        publicationStatus: pubStatus,
+        isPublished: isPub,
+        noindex: isPub ? Boolean(editingProduct.noindex) : true,
+        provenance: editingProduct.provenance || 'owner_created',
+        ownerVerifiedAt: isPub
+          ? editingProduct.ownerVerifiedAt || new Date().toISOString()
+          : editingProduct.ownerVerifiedAt,
         minStockThreshold: Number(editingProduct.minStockThreshold ?? 5),
         stockQuantity: Number(editingProduct.stockQuantity ?? 20),
+        updatedAt: new Date().toISOString(),
       };
       await setDoc(doc(db, 'products', toSave.id), toSave);
       await recordAuditLog(
         'products',
         isNewProduct ? 'PRODUCT_CREATED' : 'PRODUCT_UPDATED',
         toSave.id,
-        `${isNewProduct ? 'Created' : 'Updated'} product "${toSave.name}" (₹${toSave.basePrice})`
+        `${isNewProduct ? 'Created' : 'Updated'} product "${toSave.name}" (₹${toSave.basePrice}, status: ${pubStatus})`
       );
       setEditingProduct(null);
       setIsNewProduct(false);
-      setProductActionBanner(`Saved product "${toSave.name}".`);
+      setProductActionBanner(`Saved product "${toSave.name}" (${pubStatus}).`);
       setTimeout(() => setProductActionBanner(null), 3500);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `products/${editingProduct.id}`);
+    }
+  };
+
+  const handleOwnerVerifyAndPublishProduct = async (prod: ProductItem) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const updated: ProductItem = {
+        ...prod,
+        publicationStatus: 'published',
+        isPublished: true,
+        isAvailable: true,
+        noindex: false,
+        provenance: 'owner_verified',
+        ownerVerifiedAt: nowIso,
+        updatedAt: nowIso,
+      };
+      await setDoc(doc(db, 'products', prod.id), updated);
+      await recordAuditLog(
+        'products',
+        'PRODUCT_OWNER_VERIFIED_PUBLISHED',
+        prod.id,
+        `Owner verified & published "${prod.name}" for Google Search & Sitemap`
+      );
+      setProductActionBanner(
+        `Verified & published "${prod.name}"! It is now indexable in Google Search and /sitemap.xml.`
+      );
+      setTimeout(() => setProductActionBanner(null), 4000);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${prod.id}`);
     }
   };
 
@@ -1665,7 +1797,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!editingCategory) return;
     try {
-      await setDoc(doc(db, 'categories', editingCategory.id), editingCategory);
+      const updatedCat: CategoryItem = {
+        ...editingCategory,
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'categories', updatedCat.id), updatedCat);
       setEditingCategory(null);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `categories/${editingCategory.id}`);
@@ -1677,10 +1813,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!editingCakeDesign) return;
     try {
-      await setDoc(doc(db, 'cake_designs', editingCakeDesign.id), editingCakeDesign);
+      const pubStatus = editingCakeDesign.publicationStatus || 'published';
+      const isPub = pubStatus === 'published' || pubStatus === 'approved';
+      const toSave: CakeDesignItem = {
+        ...editingCakeDesign,
+        slug:
+          editingCakeDesign.slug ||
+          (editingCakeDesign.title || editingCakeDesign.name || editingCakeDesign.id)
+            .toLowerCase()
+            .replace(/[^a-z0-9-]+/g, '-')
+            .replace(/(^-|-$)/g, ''),
+        publicationStatus: pubStatus,
+        noindex: isPub ? Boolean(editingCakeDesign.noindex) : true,
+        provenance: editingCakeDesign.provenance || 'owner_created',
+        ownerVerifiedAt: isPub
+          ? editingCakeDesign.ownerVerifiedAt || new Date().toISOString()
+          : editingCakeDesign.ownerVerifiedAt,
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'cake_designs', toSave.id), toSave);
       setEditingCakeDesign(null);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `cake_designs/${editingCakeDesign.id}`);
+    }
+  };
+
+  const handleOwnerVerifyAndPublishCakeDesign = async (cd: CakeDesignItem) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const updated: CakeDesignItem = {
+        ...cd,
+        publicationStatus: 'published',
+        isActive: true,
+        noindex: false,
+        provenance: 'owner_verified',
+        ownerVerifiedAt: nowIso,
+        updatedAt: nowIso,
+      };
+      await setDoc(doc(db, 'cake_designs', cd.id), updated);
+      await recordAuditLog(
+        'cakes',
+        'CAKE_DESIGN_OWNER_VERIFIED',
+        cd.id,
+        `Owner verified & published cake design "${cd.title || cd.name}" for SEO`
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `cake_designs/${cd.id}`);
     }
   };
 
@@ -2811,7 +2989,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
             </button>
             {notifDrawerOpen && (
-              <div className="absolute right-0 mt-2 w-80 bg-white text-[#3B2824] border border-[#E6D7C8] rounded-2xl shadow-2xl p-4 z-50 space-y-2.5 text-xs">
+              <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white text-[#3B2824] border border-[#E6D7C8] rounded-2xl shadow-2xl p-4 z-50 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between border-b border-[#E6D7C8] pb-2">
                   <span className="font-bold">Live System Alerts</span>
                   <button
@@ -3494,6 +3672,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       stockQuantity: 20,
                       imageUrl:
                         '/assets/cakes/loveys-chocolate-truffle-gateau.jpg',
+                      imageAlt: '',
+                      seoTitle: '',
+                      seoDescription: '',
+                      publicationStatus: 'published',
+                      provenance: 'owner_created',
+                      isPublished: true,
+                      noindex: false,
                       variantsSummary: '0.5 kg (500g):0 | 1 kg:480 | 1.5 kg:950 | 2 kg:1400',
                       flavorsSummary:
                         'Belgian Dark Truffle:0 | Dutch Hazelnut Praline:120 | Roasted Almond Fudge:90',
@@ -3719,6 +3904,141 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
+                  {/* PHASE 8 & PHASE 20: CATALOGUE VERIFICATION STATUS & SEO METADATA */}
+                  <div className="p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-[#3B2824]">
+                        SEO Metadata, Alt Text &amp; Owner Catalogue Verification (Google Search &amp; Sitemap)
+                      </p>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+                          editingProduct.publicationStatus === 'published' ||
+                          editingProduct.publicationStatus === 'approved'
+                            ? 'bg-[#E8F5E9] text-[#2D6A4F]'
+                            : 'bg-[#FFF5F5] text-[#B94E62]'
+                        }`}
+                      >
+                        {editingProduct.publicationStatus === 'needs_owner_verification'
+                          ? 'Starter Sample — Excluded from Google Sitemap until Verified'
+                          : `Status: ${editingProduct.publicationStatus || 'published'}`}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          Publication &amp; Verification Status
+                        </label>
+                        <select
+                          value={editingProduct.publicationStatus || 'published'}
+                          onChange={(e) => {
+                            const nextStatus = e.target.value as any;
+                            const isPub = nextStatus === 'published' || nextStatus === 'approved';
+                            setEditingProduct({
+                              ...editingProduct,
+                              publicationStatus: nextStatus,
+                              isPublished: isPub,
+                              noindex: !isPub,
+                            });
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white font-semibold"
+                        >
+                          <option value="published">Owner Verified &amp; Published (Indexable)</option>
+                          <option value="approved">Approved for Public Search</option>
+                          <option value="needs_owner_verification">
+                            Needs Owner Verification (Sample / Noindex)
+                          </option>
+                          <option value="draft">Draft (Noindex)</option>
+                          <option value="archived">Archived (Noindex)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">URL Slug (/menu/:slug)</label>
+                        <input
+                          type="text"
+                          value={editingProduct.slug}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              slug: e.target.value
+                                .toLowerCase()
+                                .replace(/[^a-z0-9-]+/g, '-')
+                                .replace(/(^-|-$)/g, ''),
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white font-mono-num"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          Descriptive Image Alt Text (Image SEO)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingProduct.imageAlt || ''}
+                          onChange={(e) =>
+                            setEditingProduct({ ...editingProduct, imageAlt: e.target.value })
+                          }
+                          placeholder={`${editingProduct.name || 'Product'} at Lovey's Bakery & Pizza Corners, Renukoot`}
+                          className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          Custom SEO Meta Title (Optional — auto-generated if blank)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingProduct.seoTitle || ''}
+                          onChange={(e) =>
+                            setEditingProduct({ ...editingProduct, seoTitle: e.target.value })
+                          }
+                          placeholder={`${editingProduct.name || 'Product'} in Renukoot | Starting ₹${editingProduct.basePrice} | Lovey's Bakery`}
+                          className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          Custom SEO Meta Description (Optional — 140–160 chars)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingProduct.seoDescription || ''}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              seoDescription: e.target.value,
+                            })
+                          }
+                          placeholder={`Order ${editingProduct.name || 'Product'} from Lovey's Bakery & Pizza Corners in Renukoot, Sonbhadra.`}
+                          className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Google Search Result Snippet Preview */}
+                    <div className="p-3.5 rounded-xl bg-white border border-[#E6D7C8] space-y-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B544E]">
+                        Google Search Snippet Preview
+                      </p>
+                      <p className="text-[11px] text-[#2D6A4F] font-mono-num">
+                        https://demoloveysbakeryrenukoot.vercel.app/menu/{editingProduct.slug || 'product-slug'}
+                      </p>
+                      <p className="text-sm font-bold text-[#1A0DAB]">
+                        {editingProduct.seoTitle ||
+                          `${editingProduct.name || 'Product'} in Renukoot | Starting ₹${editingProduct.basePrice} | Lovey's Bakery & Pizza Corners`}
+                      </p>
+                      <p className="text-xs text-[#4D5156] line-clamp-2">
+                        {editingProduct.seoDescription ||
+                          editingProduct.shortDescription ||
+                          `Order ${editingProduct.name || 'this item'} online from Lovey's Bakery & Pizza Corners in Renukoot, Sonbhadra.`}
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-4 text-xs">
                     <label className="inline-flex items-center gap-1.5 font-semibold">
                       <input
@@ -3748,7 +4068,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           setEditingProduct({ ...editingProduct, isAvailable: e.target.checked })
                         }
                       />
-                      Published &amp; In Stock
+                      In Stock on Storefront
                     </label>
                   </div>
 
@@ -3772,7 +4092,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Products Table */}
               <div className="bg-white border border-[#E6D7C8] rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-left text-xs">
                   <thead className="bg-[#F5EBE1] text-[#3B2824]">
                     <tr>
                       <th className="p-3.5">Product</th>
@@ -3815,18 +4136,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </p>
                           )}
                         </td>
-                        <td className="p-3.5">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleProductVisibility(prod)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
-                              prod.isAvailable
-                                ? 'bg-[#E8F5E9] text-[#2D6A4F]'
-                                : 'bg-[#FFF5F5] text-[#B94E62]'
-                            }`}
-                          >
-                            {prod.isAvailable ? 'Published' : 'Hidden'}
-                          </button>
+                        <td className="p-3.5 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProductVisibility(prod)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
+                                prod.isAvailable
+                                  ? 'bg-[#E8F5E9] text-[#2D6A4F]'
+                                  : 'bg-[#FFF5F5] text-[#B94E62]'
+                              }`}
+                            >
+                              {prod.isAvailable ? 'In Stock' : 'Hidden'}
+                            </button>
+                            {prod.publicationStatus === 'needs_owner_verification' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOwnerVerifyAndPublishProduct(prod)}
+                                className="px-2.5 py-1 rounded-lg bg-[#3B2824] hover:bg-[#2D6A4F] text-[#E5B867] hover:text-white text-[10px] font-bold"
+                                title="Click to verify this starter item so it is indexed in Google Search & /sitemap.xml"
+                              >
+                                Verify &amp; Index for SEO
+                              </button>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-[#E8F5E9] text-[#2D6A4F] text-[10px] font-bold">
+                                SEO Indexed
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-2">
@@ -3837,7 +4174,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 setEditingProduct(prod);
                               }}
                               className="p-1.5 rounded-lg bg-[#F5EBE1] text-[#3B2824]"
-                              title="Edit Product & Variants"
+                              title="Edit Product, SEO & Variants"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
@@ -3855,6 +4192,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -3905,7 +4243,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setEditingCategory({
                           ...editingCategory,
                           name: e.target.value,
-                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                          slug:
+                            editingCategory.slug ||
+                            e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                         })
                       }
                       className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
@@ -3921,10 +4261,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                     <input
                       type="text"
-                      placeholder="Description"
+                      placeholder="URL Slug (/categories/:slug)"
+                      value={editingCategory.slug}
+                      onChange={(e) =>
+                        setEditingCategory({
+                          ...editingCategory,
+                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-'),
+                        })
+                      }
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs font-mono-num"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Category Description"
                       value={editingCategory.description}
                       onChange={(e) =>
                         setEditingCategory({ ...editingCategory, description: e.target.value })
+                      }
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Descriptive Image Alt Text (SEO)"
+                      value={editingCategory.imageAlt || ''}
+                      onChange={(e) =>
+                        setEditingCategory({ ...editingCategory, imageAlt: e.target.value })
+                      }
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Custom SEO Meta Title (Optional)"
+                      value={editingCategory.seoTitle || ''}
+                      onChange={(e) =>
+                        setEditingCategory({ ...editingCategory, seoTitle: e.target.value })
+                      }
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Custom SEO Meta Description (Optional)"
+                      value={editingCategory.seoDescription || ''}
+                      onChange={(e) =>
+                        setEditingCategory({ ...editingCategory, seoDescription: e.target.value })
                       }
                       className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
                     />
@@ -3941,7 +4324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       type="submit"
                       className="px-4 py-1.5 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold"
                     >
-                      Save Category
+                      Save Category &amp; SEO
                     </button>
                   </div>
                 </form>
@@ -3956,13 +4339,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex items-center gap-3">
                       <img
                         src={cat.imageUrl}
-                        alt={cat.name}
+                        alt={cat.imageAlt || cat.name}
                         referrerPolicy="no-referrer"
                         className="w-12 h-12 rounded-xl object-cover"
                       />
                       <div>
                         <p className="font-bold text-sm">{cat.name}</p>
                         <p className="text-xs text-[#6B544E]">{cat.nameHi}</p>
+                        <p className="text-[10px] font-mono-num text-[#2D6A4F]">
+                          /categories/{cat.slug}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -3985,7 +4371,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div>
                   <h2 className="font-serif text-2xl font-bold">Custom Cake Designs Studio</h2>
                   <p className="text-xs text-[#6B544E]">
-                    Manage signature custom cake templates, minimum weights, and quotation flags
+                    Manage signature custom cake templates, minimum weights, SEO metadata, and owner verification status
                   </p>
                 </div>
                 <button
@@ -3994,9 +4380,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setEditingCakeDesign({
                       id: `cake-design-${Date.now()}`,
                       title: '',
+                      slug: '',
                       occasion: 'Birthday',
                       description: '',
                       imageUrl: '/assets/cakes/loveys-tier-celebration-cake.jpg',
+                      imageAlt: '',
+                      seoTitle: '',
+                      seoDescription: '',
                       startingPrice: 1250,
                       minWeightKg: 1,
                       maxWeightKg: 5,
@@ -4004,6 +4394,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       leadTimeHours: 24,
                       isQuotationBased: false,
                       isActive: true,
+                      publicationStatus: 'published',
+                      provenance: 'owner_created',
+                      noindex: false,
                     })
                   }
                   className="px-4 py-2.5 rounded-xl bg-[#B94E62] text-white text-xs font-semibold flex items-center gap-1.5"
@@ -4025,7 +4418,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       placeholder="Design Title"
                       value={editingCakeDesign.title}
                       onChange={(e) =>
-                        setEditingCakeDesign({ ...editingCakeDesign, title: e.target.value })
+                        setEditingCakeDesign({
+                          ...editingCakeDesign,
+                          title: e.target.value,
+                          slug:
+                            editingCakeDesign.slug ||
+                            e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                        })
                       }
                       className="px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
                     />
@@ -4060,6 +4459,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] text-xs"
                   />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <select
+                      value={editingCakeDesign.publicationStatus || 'published'}
+                      onChange={(e) => {
+                        const nextStatus = e.target.value as any;
+                        const isPub = nextStatus === 'published' || nextStatus === 'approved';
+                        setEditingCakeDesign({
+                          ...editingCakeDesign,
+                          publicationStatus: nextStatus,
+                          noindex: !isPub,
+                        });
+                      }}
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] font-semibold"
+                    >
+                      <option value="published">Owner Verified &amp; Published (Indexable)</option>
+                      <option value="approved">Approved for Public Search</option>
+                      <option value="needs_owner_verification">
+                        Needs Owner Verification (Sample / Noindex)
+                      </option>
+                      <option value="draft">Draft (Noindex)</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="URL Slug (/cakes/:slug)"
+                      value={editingCakeDesign.slug || ''}
+                      onChange={(e) =>
+                        setEditingCakeDesign({
+                          ...editingCakeDesign,
+                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-'),
+                        })
+                      }
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8] font-mono-num"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Descriptive Image Alt Text"
+                      value={editingCakeDesign.imageAlt || ''}
+                      onChange={(e) =>
+                        setEditingCakeDesign({ ...editingCakeDesign, imageAlt: e.target.value })
+                      }
+                      className="px-3 py-2 rounded-xl border border-[#E6D7C8]"
+                    />
+                  </div>
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
@@ -4072,7 +4514,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       type="submit"
                       className="px-4 py-1.5 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold"
                     >
-                      Save Design
+                      Save Design &amp; SEO
                     </button>
                   </div>
                 </form>
@@ -4086,7 +4528,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   >
                     <img
                       src={cd.imageUrl}
-                      alt={cd.title}
+                      alt={cd.imageAlt || cd.title}
                       referrerPolicy="no-referrer"
                       className="w-24 h-24 rounded-xl object-cover shrink-0"
                     />
@@ -4098,17 +4540,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <p className="text-xs text-[#6B544E] line-clamp-2 mt-0.5">
                         {cd.description}
                       </p>
-                      <div className="mt-2 flex items-center justify-between">
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="font-mono-num text-xs font-bold">
                           Starts at ₹{cd.startingPrice}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setEditingCakeDesign(cd)}
-                          className="text-xs font-semibold text-[#B94E62] hover:underline"
-                        >
-                          Edit Design
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {cd.publicationStatus === 'needs_owner_verification' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOwnerVerifyAndPublishCakeDesign(cd)}
+                              className="px-2.5 py-1 rounded-lg bg-[#3B2824] hover:bg-[#2D6A4F] text-[#E5B867] hover:text-white text-[10px] font-bold"
+                            >
+                              Verify &amp; Index for SEO
+                            </button>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-[#E8F5E9] text-[#2D6A4F] text-[10px] font-bold">
+                              SEO Indexed
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setEditingCakeDesign(cd)}
+                            className="text-xs font-semibold text-[#B94E62] hover:underline"
+                          >
+                            Edit Design
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4293,28 +4750,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {customerList.length === 0 ? (
                 <p className="text-xs text-[#6B544E]">No customer records yet.</p>
               ) : (
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-[#E6D7C8] text-[#6B544E]">
-                    <tr>
-                      <th className="py-2.5">Customer Name</th>
-                      <th className="py-2.5">Phone</th>
-                      <th className="py-2.5">Total Orders</th>
-                      <th className="py-2.5">Total Spent</th>
-                      <th className="py-2.5">Latest Order #</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E6D7C8]">
-                    {customerList.map((c, idx) => (
-                      <tr key={idx}>
-                        <td className="py-3 font-bold">{c.name}</td>
-                        <td className="py-3 font-mono-num">{c.phone}</td>
-                        <td className="py-3 font-mono-num">{c.totalOrders}</td>
-                        <td className="py-3 font-mono-num font-bold">₹{c.totalSpent}</td>
-                        <td className="py-3 font-mono-num">{c.lastOrder}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[540px] text-left text-xs">
+                    <thead className="border-b border-[#E6D7C8] text-[#6B544E]">
+                      <tr>
+                        <th className="py-2.5 pr-3">Customer Name</th>
+                        <th className="py-2.5 pr-3">Phone</th>
+                        <th className="py-2.5 pr-3">Total Orders</th>
+                        <th className="py-2.5 pr-3">Total Spent</th>
+                        <th className="py-2.5">Latest Order #</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#E6D7C8]">
+                      {customerList.map((c, idx) => (
+                        <tr key={idx}>
+                          <td className="py-3 pr-3 font-bold">{c.name}</td>
+                          <td className="py-3 pr-3 font-mono-num">{c.phone}</td>
+                          <td className="py-3 pr-3 font-mono-num">{c.totalOrders}</td>
+                          <td className="py-3 pr-3 font-mono-num font-bold">₹{c.totalSpent}</td>
+                          <td className="py-3 font-mono-num">{c.lastOrder}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
@@ -4535,8 +4994,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </button>
                     </div>
 
-                    <div className="p-6 space-y-4">
-                      <div className="grid grid-cols-3 gap-3 text-xs bg-[#FFF8F1] p-3.5 rounded-2xl border border-[#E6D7C8]">
+                    <div className="p-4 sm:p-6 space-y-4 max-h-[85dvh] overflow-y-auto">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-[#FFF8F1] p-3.5 rounded-2xl border border-[#E6D7C8]">
                         <div>
                           <span className="text-[#6B544E] block">Customer</span>
                           <span className="font-bold">
@@ -5649,6 +6108,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* PHASE 4 & 5: LOCAL SEO GEO-COORDINATE VERIFICATION & GOOGLE BUSINESS PROFILE REVIEW LINK */}
+                <div className="p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#3B2824]">
+                    Local SEO Verification: Exact Store Coordinates, Opening Hours &amp; Official Google Review Link
+                  </p>
+                  <p className="text-[11px] text-[#6B544E]">
+                    Structured data (`GeoCoordinates` &amp; `OpeningHoursSpecification` in JSON-LD) is emitted to Google Search only after you verify and check the confirmation boxes below.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <label className="block font-semibold mb-1">Store Latitude (Renukoot Pin)</label>
+                      <input
+                        type="number"
+                        step="0.0000001"
+                        value={localSettings.coordinatesLat ?? 24.2054}
+                        onChange={(e) =>
+                          setLocalSettings({
+                            ...localSettings,
+                            coordinatesLat: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white font-mono-num"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">Store Longitude (Renukoot Pin)</label>
+                      <input
+                        type="number"
+                        step="0.0000001"
+                        value={localSettings.coordinatesLng ?? 83.0355}
+                        onChange={(e) =>
+                          setLocalSettings({
+                            ...localSettings,
+                            coordinatesLng: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white font-mono-num"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">
+                        Verified Google Business Review URL (Optional)
+                      </label>
+                      <input
+                        type="url"
+                        value={localSettings.googleReviewUrl || ''}
+                        onChange={(e) =>
+                          setLocalSettings({
+                            ...localSettings,
+                            googleReviewUrl: e.target.value,
+                          })
+                        }
+                        placeholder="https://g.page/r/.../review"
+                        className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-6 pt-1 text-xs">
+                    <label className="inline-flex items-center gap-2 font-bold text-[#3B2824]">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(localSettings.coordinatesVerifiedByOwner)}
+                        onChange={(e) =>
+                          setLocalSettings({
+                            ...localSettings,
+                            coordinatesVerifiedByOwner: e.target.checked,
+                          })
+                        }
+                      />
+                      I have verified the exact Google Maps pin coordinates (Emit GeoCoordinates in Schema.org JSON-LD)
+                    </label>
+                    <label className="inline-flex items-center gap-2 font-bold text-[#3B2824]">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(localSettings.openingHoursVerifiedByOwner)}
+                        onChange={(e) =>
+                          setLocalSettings({
+                            ...localSettings,
+                            openingHoursVerifiedByOwner: e.target.checked,
+                          })
+                        }
+                      />
+                      I have verified daily store opening hours (Emit OpeningHoursSpecification in Schema.org JSON-LD)
+                    </label>
+                  </div>
+                </div>
               </form>
 
               {/* Delivery Zones & PIN Code Serviceability */}
@@ -5748,6 +6294,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onNavigate={onNavigate}
               websiteConfig={websiteConfig}
               customPages={customPages}
+              products={products}
+              categories={categories}
+              cakeDesigns={cakeDesigns}
+              settings={localSettings}
               userEmail={effectiveAdminEmail || 'admin'}
               hasPermission={hasPermission}
               recordAuditLog={recordAuditLog}
@@ -5798,6 +6348,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onSessionTokenRotated={(newTok) => {
                 sessionStorage.setItem('loveys_admin_session_token', newTok);
                 setPasswordSessionToken(newTok);
+              }}
+              onAccountUpdated={(updatedAcc, newTok) => {
+                setPasswordAuthAccount(updatedAcc);
+                if (newTok) {
+                  sessionStorage.setItem('loveys_admin_session_token', newTok);
+                  setPasswordSessionToken(newTok);
+                }
+                if (onPasswordAuthSuccess) {
+                  onPasswordAuthSuccess(updatedAcc, newTok || passwordSessionToken);
+                }
               }}
               currentStaffMember={currentStaffMember}
               staffMembers={staffMembers}

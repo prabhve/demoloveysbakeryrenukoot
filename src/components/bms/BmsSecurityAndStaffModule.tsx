@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  verifyBeforeUpdateEmail,
+  updatePassword,
+} from 'firebase/auth';
+import { db, auth } from '../../lib/firebase';
 import {
   StaffMemberRecord,
   RoleDefinitionRecord,
@@ -57,6 +63,7 @@ interface LoginHistoryItem {
     | 'failure'
     | 'lockout'
     | 'password_changed'
+    | 'email_changed'
     | 'password_reset'
     | 'session_revoked';
   reason: string;
@@ -69,6 +76,7 @@ interface BmsSecurityAndStaffModuleProps {
   userEmail: string;
   sessionToken: string;
   onSessionTokenRotated?: (newToken: string) => void;
+  onAccountUpdated?: (updatedAccount: StaffMemberRecord, newToken?: string) => void;
   currentStaffMember: StaffMemberRecord;
   staffMembers: StaffMemberRecord[];
   roleDefinitions: RoleDefinitionRecord[];
@@ -132,6 +140,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
   userEmail,
   sessionToken,
   onSessionTokenRotated,
+  onAccountUpdated,
   currentStaffMember,
   staffMembers,
   roleDefinitions,
@@ -174,6 +183,24 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+
+  // Registered Email & Profile Change State (Account Settings)
+  const [newEmailInput, setNewEmailInput] = useState(currentStaffMember.email || userEmail || '');
+  const [newUsernameInput, setNewUsernameInput] = useState(
+    currentStaffMember.username || 'owner'
+  );
+  const [newDisplayNameInput, setNewDisplayNameInput] = useState(
+    currentStaffMember.name || "Lovey's Principal Owner"
+  );
+  const [emailChangeCurrentPassword, setEmailChangeCurrentPassword] = useState('');
+  const [showEmailChangePassword, setShowEmailChangePassword] = useState(false);
+  const [changingEmail, setChangingEmail] = useState(false);
+
+  useEffect(() => {
+    setNewEmailInput(currentStaffMember.email || userEmail || '');
+    setNewUsernameInput(currentStaffMember.username || 'owner');
+    setNewDisplayNameInput(currentStaffMember.name || "Lovey's Principal Owner");
+  }, [currentStaffMember.email, currentStaffMember.username, currentStaffMember.name, userEmail]);
 
   // Security Overview State (Active Sessions, Login History, Suspicious Attempts)
   const [activeSessions, setActiveSessions] = useState<ActiveSessionInfo[]>([]);
@@ -346,7 +373,11 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
 
   const handleToggleStaffStatus = (staff: StaffMemberRecord) => {
     setErrorMsg(null);
-    if (staff.email.toLowerCase() === 'prabhve5@gmail.com') {
+    if (
+      staff.roleId === 'role-owner' ||
+      staff.email.toLowerCase() === 'prabhve5@gmail.com' ||
+      staff.email.toLowerCase() === 'owner@loveys-demo.test'
+    ) {
       setErrorMsg('The Principal Owner account cannot be deactivated.');
       return;
     }
@@ -568,6 +599,40 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
       if (data.sessionToken && onSessionTokenRotated) {
         onSessionTokenRotated(data.sessionToken);
       }
+      if (data.account && onAccountUpdated) {
+        onAccountUpdated(data.account, data.sessionToken);
+      }
+
+      // Sync updated password status to Firestore staff_members profile
+      try {
+        await setDoc(doc(db, 'staff_members', currentStaffMember.id), {
+          ...currentStaffMember,
+          ...(data.account || {}),
+          requirePasswordChange: false,
+          mustChangePassword: false,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Non-blocking Firestore sync when signed in via server session
+      }
+
+      // If also signed into Firebase Auth via Email/Password, synchronize Firebase Auth password
+      if (
+        auth.currentUser &&
+        auth.currentUser.email &&
+        auth.currentUser.providerData.some((p) => p.providerId === 'password')
+      ) {
+        try {
+          const cred = EmailAuthProvider.credential(
+            auth.currentUser.email,
+            currentPasswordInput
+          );
+          await reauthenticateWithCredential(auth.currentUser, cred);
+          await updatePassword(auth.currentUser, newPasswordInput);
+        } catch (fbErr: any) {
+          console.warn('Firebase Auth password sync note:', fbErr?.code || fbErr?.message);
+        }
+      }
 
       setCurrentPasswordInput('');
       setNewPasswordInput('');
@@ -576,7 +641,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
         'security',
         'ADMIN_PASSWORD_CHANGED',
         currentStaffMember.id,
-        `Password changed for ${userEmail}; all previous sessions invalidated`
+        `Password changed for ${userEmail}; mustChangePassword cleared and all previous sessions invalidated`
       );
       await fetchSecurityOverview();
       setBannerMsg(
@@ -587,6 +652,107 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
       setErrorMsg(err.message || 'Failed to change password.');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  // Registered Email & Owner Profile Update Handler (with Current Password Reauthentication)
+  const handleChangeRegisteredEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setBannerMsg(null);
+
+    const cleanNewEmail = newEmailInput.trim().toLowerCase();
+    const cleanNewUsername = newUsernameInput
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_.-]/g, '');
+    const cleanNewName = newDisplayNameInput.trim();
+
+    if (!cleanNewEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanNewEmail)) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    if (!emailChangeCurrentPassword) {
+      setErrorMsg('Please enter your current password to reauthenticate before changing your email.');
+      return;
+    }
+
+    setChangingEmail(true);
+    try {
+      const res = await fetch('/api/admin/auth/change-email', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          currentPassword: emailChangeCurrentPassword,
+          newEmail: cleanNewEmail,
+          newUsername: cleanNewUsername,
+          newName: cleanNewName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Failed to update registered email.');
+        return;
+      }
+
+      if (data.sessionToken && onSessionTokenRotated) {
+        onSessionTokenRotated(data.sessionToken);
+      }
+      if (data.account && onAccountUpdated) {
+        onAccountUpdated(data.account, data.sessionToken);
+      }
+
+      // Sync updated owner/staff profile to Firestore staff_members collection
+      try {
+        await setDoc(doc(db, 'staff_members', currentStaffMember.id), {
+          ...currentStaffMember,
+          ...(data.account || {}),
+          email: cleanNewEmail,
+          username: cleanNewUsername || currentStaffMember.username,
+          name: cleanNewName || currentStaffMember.name,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Non-blocking if Firestore write requires matching Firebase Auth token
+      }
+
+      // If signed into Firebase Auth with Email/Password, also trigger Firebase reauthentication & verifyBeforeUpdateEmail
+      let firebaseVerificationNote = '';
+      if (
+        auth.currentUser &&
+        auth.currentUser.email &&
+        auth.currentUser.providerData.some((p) => p.providerId === 'password')
+      ) {
+        try {
+          const cred = EmailAuthProvider.credential(
+            auth.currentUser.email,
+            emailChangeCurrentPassword
+          );
+          await reauthenticateWithCredential(auth.currentUser, cred);
+          await verifyBeforeUpdateEmail(auth.currentUser, cleanNewEmail);
+          firebaseVerificationNote =
+            ' A Firebase Auth verification email has also been dispatched to the new address.';
+        } catch (fbErr: any) {
+          firebaseVerificationNote = ` (Firebase Auth note: ${fbErr?.code || 'provider sync skipped'})`;
+        }
+      }
+
+      setEmailChangeCurrentPassword('');
+      await recordAuditLog(
+        'security',
+        'ADMIN_EMAIL_CHANGED',
+        currentStaffMember.id,
+        `Registered admin email updated from ${data.previousEmail || userEmail} to ${cleanNewEmail}`
+      );
+      await fetchSecurityOverview();
+      setBannerMsg(
+        `${data.message || `Registered email updated to ${cleanNewEmail}.`}${firebaseVerificationNote}`
+      );
+      setTimeout(() => setBannerMsg(null), 6500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update registered email.');
+    } finally {
+      setChangingEmail(false);
     }
   };
 
@@ -939,12 +1105,12 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
                       <td className="py-3 pr-3">
                         <span
                           className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                            st.requirePasswordChange
+                            st.requirePasswordChange || st.mustChangePassword
                               ? 'bg-[#FFF4E5] text-[#B36B00]'
                               : 'bg-[#E8F5E9] text-[#2D6A4F]'
                           }`}
                         >
-                          {st.requirePasswordChange
+                          {st.requirePasswordChange || st.mustChangePassword
                             ? 'Must Change on Login'
                             : '12+ Char Scrypt Hash'}
                         </span>
@@ -983,19 +1149,21 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
                           >
                             Revoke Sessions
                           </button>
-                          {st.email.toLowerCase() !== 'prabhve5@gmail.com' && (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleStaffStatus(st)}
-                              className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] ${
-                                st.status === 'active'
-                                  ? 'bg-[#FFF5F5] text-[#B94E62]'
-                                  : 'bg-[#E8F5E9] text-[#2D6A4F]'
-                              }`}
-                            >
-                              {st.status === 'active' ? 'Deactivate' : 'Reactivate'}
-                            </button>
-                          )}
+                          {st.roleId !== 'role-owner' &&
+                            st.email.toLowerCase() !== 'prabhve5@gmail.com' &&
+                            st.email.toLowerCase() !== 'owner@loveys-demo.test' && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStaffStatus(st)}
+                                className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] ${
+                                  st.status === 'active'
+                                    ? 'bg-[#FFF5F5] text-[#B94E62]'
+                                    : 'bg-[#E8F5E9] text-[#2D6A4F]'
+                                }`}
+                              >
+                                {st.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                              </button>
+                            )}
                         </div>
                       </td>
                     </tr>
@@ -1186,6 +1354,107 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Owner & Admin Account Settings — Replace Demo Email / Update Registered Email & Username */}
+          <form
+            onSubmit={handleChangeRegisteredEmail}
+            className="lg:col-span-6 bg-white border border-[#E6D7C8] rounded-2xl p-5 space-y-4 text-xs"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2D6A4F]">
+                  Account Settings &amp; Owner Handover
+                </span>
+                <h3 className="font-serif text-lg font-bold mt-0.5">
+                  Change Registered Email, Username &amp; Display Name
+                </h3>
+              </div>
+              <Shield className="w-5 h-5 text-[#3B2824]" />
+            </div>
+
+            {(currentStaffMember.email || userEmail).toLowerCase().endsWith('.test') && (
+              <div className="p-3 rounded-xl bg-[#FFF4E5] border border-[#B36B00]/30 text-[#B36B00] space-y-1">
+                <p className="font-bold">Initial Demo Email Active ({currentStaffMember.email || userEmail})</p>
+                <p className="text-[11px]">
+                  Replace <code>owner@loveys-demo.test</code> below with the actual bakery owner&apos;s permanent email address. Current password reauthentication is required.
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold mb-1">Registered Login Email</label>
+                <input
+                  type="email"
+                  required
+                  value={newEmailInput}
+                  onChange={(e) => setNewEmailInput(e.target.value)}
+                  placeholder="owner@loveysbakery.in"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] font-mono-num"
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Admin Username</label>
+                <input
+                  type="text"
+                  required
+                  value={newUsernameInput}
+                  onChange={(e) => setNewUsernameInput(e.target.value)}
+                  placeholder="owner"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] font-mono-num"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold mb-1">Owner / Administrator Display Name</label>
+              <input
+                type="text"
+                required
+                value={newDisplayNameInput}
+                onChange={(e) => setNewDisplayNameInput(e.target.value)}
+                placeholder="Lovey's Principal Owner"
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold mb-1">
+                Current Password (Required for Reauthentication)
+              </label>
+              <div className="relative">
+                <input
+                  type={showEmailChangePassword ? 'text' : 'password'}
+                  required
+                  value={emailChangeCurrentPassword}
+                  onChange={(e) => setEmailChangeCurrentPassword(e.target.value)}
+                  placeholder="Enter your current password to confirm email change"
+                  className="w-full pl-3 pr-9 py-2.5 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] font-mono-num"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEmailChangePassword(!showEmailChangePassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B544E]"
+                >
+                  {showEmailChangePassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={changingEmail}
+              className="w-full py-2.5 rounded-xl bg-[#2D6A4F] text-white font-semibold hover:bg-[#23533D] disabled:opacity-50"
+            >
+              {changingEmail
+                ? 'Reauthenticating & Updating Registered Email...'
+                : 'Update Registered Email & Profile'}
+            </button>
+          </form>
+
           {/* Change Admin Password Card */}
           <form
             onSubmit={handleChangePassword}
@@ -1299,7 +1568,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
           </form>
 
           {/* Session Timeout & Hardened Security Controls */}
-          <div className="lg:col-span-6 bg-white border border-[#E6D7C8] rounded-2xl p-5 space-y-4">
+          <div className="lg:col-span-12 bg-white border border-[#E6D7C8] rounded-2xl p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#2D6A4F]">
@@ -1312,34 +1581,36 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
               <Lock className="w-5 h-5 text-[#3B2824]" />
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-2 text-xs">
-              <label className="block font-bold">
-                Automatic Logout After Inactivity
-              </label>
-              <select
-                value={inactivityMinutes}
-                onChange={(e) => onChangeInactivityMinutes(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white font-semibold"
-              >
-                <option value={15}>15 Minutes (High Security Counter Mode)</option>
-                <option value={30}>30 Minutes (Recommended Store Mode)</option>
-                <option value={60}>60 Minutes (Standard Operations)</option>
-                <option value={120}>120 Minutes (Extended Shift)</option>
-              </select>
-              <p className="text-[11px] text-[#6B544E]">
-                Automatically terminates idle admin sessions when no mouse or keyboard activity is detected.
-              </p>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3.5 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-2 text-xs">
+                <label className="block font-bold">
+                  Automatic Logout After Inactivity
+                </label>
+                <select
+                  value={inactivityMinutes}
+                  onChange={(e) => onChangeInactivityMinutes(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white font-semibold"
+                >
+                  <option value={15}>15 Minutes (High Security Counter Mode)</option>
+                  <option value={30}>30 Minutes (Recommended Store Mode)</option>
+                  <option value={60}>60 Minutes (Standard Operations)</option>
+                  <option value={120}>120 Minutes (Extended Shift)</option>
+                </select>
+                <p className="text-[11px] text-[#6B544E]">
+                  Automatically terminates idle admin sessions when no mouse or keyboard activity is detected.
+                </p>
+              </div>
 
-            <div className="p-3.5 rounded-xl bg-[#F5EBE1]/60 border border-[#E6D7C8] space-y-1.5 text-xs">
-              <p className="font-bold text-[#3B2824]">Active Password-Only Security Protections</p>
-              <ul className="space-y-1 text-[11px] text-[#6B544E]">
-                <li>&bull; Server-side Scrypt key derivation with 16-byte cryptographic salt &amp; timing-safe comparison</li>
-                <li>&bull; Compromised password dictionary blocking &amp; 12-character minimum policy</li>
-                <li>&bull; Progressive delay + 5-minute temporary lockout after 5 failed password attempts</li>
-                <li>&bull; HttpOnly, Secure, SameSite=None, Partitioned session cookie + CSRF header verification</li>
-                <li>&bull; Second-password reauthentication for critical owner-only operations</li>
-              </ul>
+              <div className="p-3.5 rounded-xl bg-[#F5EBE1]/60 border border-[#E6D7C8] space-y-1.5 text-xs">
+                <p className="font-bold text-[#3B2824]">Active Password-Only Security Protections</p>
+                <ul className="space-y-1 text-[11px] text-[#6B544E]">
+                  <li>&bull; Server-side Scrypt key derivation with 16-byte cryptographic salt &amp; timing-safe comparison</li>
+                  <li>&bull; Compromised password dictionary blocking &amp; 12-character minimum policy</li>
+                  <li>&bull; Progressive delay + 5-minute temporary lockout after 5 failed password attempts</li>
+                  <li>&bull; HttpOnly, Secure, SameSite=None, Partitioned session cookie + CSRF header verification</li>
+                  <li>&bull; Second-password reauthentication for critical owner-only operations &amp; email updates</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -1480,7 +1751,9 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
                       <td className="py-2.5 pr-3">
                         <span
                           className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${
-                            evt.outcome === 'success' || evt.outcome === 'password_changed'
+                            evt.outcome === 'success' ||
+                            evt.outcome === 'password_changed' ||
+                            evt.outcome === 'email_changed'
                               ? 'bg-[#E8F5E9] text-[#2D6A4F]'
                               : evt.outcome === 'lockout' || evt.outcome === 'failure'
                               ? 'bg-[#FFF5F5] text-[#B94E62]'

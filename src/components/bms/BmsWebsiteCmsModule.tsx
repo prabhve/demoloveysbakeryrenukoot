@@ -5,6 +5,10 @@ import { db, storage } from '../../lib/firebase';
 import {
   WebsiteConfigRecord,
   CustomPageRecord,
+  ProductItem,
+  CategoryItem,
+  CakeDesignItem,
+  BusinessSettings,
   INITIAL_WEBSITE_CONFIG,
 } from '../../data/initialCatalogue';
 import {
@@ -17,6 +21,7 @@ import {
   Monitor,
   Smartphone,
   CheckCircle2,
+  AlertTriangle,
   ArrowUp,
   ArrowDown,
   Plus,
@@ -80,6 +85,10 @@ interface BmsWebsiteCmsModuleProps {
   onNavigate: (path: string) => void;
   websiteConfig: WebsiteConfigRecord;
   customPages: CustomPageRecord[];
+  products?: ProductItem[];
+  categories?: CategoryItem[];
+  cakeDesigns?: CakeDesignItem[];
+  settings?: BusinessSettings;
   userEmail: string;
   hasPermission: (perm: string) => boolean;
   recordAuditLog: (
@@ -95,6 +104,10 @@ export const BmsWebsiteCmsModule: React.FC<BmsWebsiteCmsModuleProps> = ({
   onNavigate,
   websiteConfig,
   customPages,
+  products = [],
+  categories = [],
+  cakeDesigns = [],
+  settings,
   userEmail,
   hasPermission,
   recordAuditLog,
@@ -296,8 +309,11 @@ export const BmsWebsiteCmsModule: React.FC<BmsWebsiteCmsModuleProps> = ({
       subtitle: selectedPage.subtitle || '',
       content: selectedPage.content || '',
       heroImageUrl: selectedPage.heroImageUrl || '',
+      imageAlt: selectedPage.imageAlt || selectedPage.title.trim(),
       seoTitle: selectedPage.seoTitle || selectedPage.title,
       seoDescription: selectedPage.seoDescription || '',
+      canonicalUrl: selectedPage.canonicalUrl || '',
+      noindex: Boolean(selectedPage.noindex),
       isPublished: Boolean(selectedPage.isPublished),
       updatedByEmail: userEmail,
       updatedAt: nowIso,
@@ -958,6 +974,30 @@ export const BmsWebsiteCmsModule: React.FC<BmsWebsiteCmsModuleProps> = ({
                       className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
                     />
                   </div>
+                  <div>
+                    <label className="block font-bold mb-1">Canonical Override URL (Optional)</label>
+                    <input
+                      type="url"
+                      value={selectedPage.canonicalUrl || ''}
+                      onChange={(e) =>
+                        setSelectedPage({ ...selectedPage, canonicalUrl: e.target.value })
+                      }
+                      placeholder={`https://demoloveysbakeryrenukoot.vercel.app/${selectedPage.slug.replace(/^\/+/, '')}`}
+                      className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] font-mono-num"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold mb-1">Hero Image Alt Text</label>
+                    <input
+                      type="text"
+                      value={selectedPage.imageAlt || ''}
+                      onChange={(e) =>
+                        setSelectedPage({ ...selectedPage, imageAlt: e.target.value })
+                      }
+                      placeholder={`${selectedPage.title} — Lovey's Bakery & Pizza Corners, Renukoot`}
+                      className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-6 pt-2">
@@ -970,6 +1010,16 @@ export const BmsWebsiteCmsModule: React.FC<BmsWebsiteCmsModuleProps> = ({
                       }
                     />
                     Published on Live Website
+                  </label>
+                  <label className="flex items-center gap-2 font-bold text-[#B94E62]">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedPage.noindex)}
+                      onChange={(e) =>
+                        setSelectedPage({ ...selectedPage, noindex: e.target.checked })
+                      }
+                    />
+                    Noindex Page (Exclude from Google Search &amp; Sitemap)
                   </label>
                 </div>
               </form>
@@ -1188,49 +1238,269 @@ export const BmsWebsiteCmsModule: React.FC<BmsWebsiteCmsModuleProps> = ({
 
       {/* 5. SEO & OPENGRAPH MANAGER (/admin/website/seo) */}
       {cmsTab === 'seo' && (
-        <div className="bg-white border border-[#E6D7C8] rounded-2xl p-6 space-y-4 text-xs max-w-3xl">
-          <h3 className="font-serif text-lg font-bold">
-            Search Engine Optimization (SEO), Meta Tags &amp; Social Cards
-          </h3>
-          <div>
-            <label className="block font-bold mb-1">Default Meta Title</label>
-            <input
-              type="text"
-              value={localConfig.seoDefaultTitle || ''}
-              onChange={(e) =>
-                setLocalConfig({ ...localConfig, seoDefaultTitle: e.target.value })
-              }
-              className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
-            />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs">
+          <div className="lg:col-span-7 bg-white border border-[#E6D7C8] rounded-2xl p-6 space-y-4">
+            <h3 className="font-serif text-lg font-bold">
+              Search Engine Optimization (SEO), Meta Tags &amp; Social Cards
+            </h3>
+            <div>
+              <label className="block font-bold mb-1">Default Homepage Meta Title</label>
+              <input
+                type="text"
+                value={localConfig.seoDefaultTitle || ''}
+                onChange={(e) =>
+                  setLocalConfig({ ...localConfig, seoDefaultTitle: e.target.value })
+                }
+                placeholder="Lovey's Bakery & Pizza Corners | Bakery & Custom Cakes in Renukoot"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
+              />
+            </div>
+            <div>
+              <label className="block font-bold mb-1">Default Homepage Meta Description</label>
+              <textarea
+                rows={3}
+                value={localConfig.seoDefaultDescription || ''}
+                onChange={(e) =>
+                  setLocalConfig({ ...localConfig, seoDefaultDescription: e.target.value })
+                }
+                className="w-full p-3 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
+              />
+            </div>
+            <div>
+              <label className="block font-bold mb-1">
+                Open Graph / WhatsApp Social Share Image URL
+              </label>
+              <input
+                type="text"
+                value={localConfig.ogImageUrl || localConfig.heroImageUrl || ''}
+                onChange={(e) =>
+                  setLocalConfig({ ...localConfig, ogImageUrl: e.target.value })
+                }
+                placeholder="/assets/hero/loveys-hero-spread.jpg"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] font-mono-num"
+              />
+            </div>
+            <div>
+              <label className="block font-bold mb-1">
+                Target Local Keywords (Renukoot &amp; Sonbhadra Focus)
+              </label>
+              <input
+                type="text"
+                value={localConfig.seoKeywords || ''}
+                onChange={(e) =>
+                  setLocalConfig({ ...localConfig, seoKeywords: e.target.value })
+                }
+                className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
+              />
+            </div>
+
+            {/* Google Search Result Snippet Preview */}
+            <div className="p-4 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B544E]">
+                Google Search Result Snippet Preview (Desktop &amp; Mobile)
+              </p>
+              <p className="text-[11px] text-[#2D6A4F] font-mono-num">
+                https://demoloveysbakeryrenukoot.vercel.app &rsaquo; renukoot-sonbhadra
+              </p>
+              <p className="text-sm font-bold text-[#1A0DAB]">
+                {localConfig.seoDefaultTitle ||
+                  "Lovey's Bakery & Pizza Corners | Bakery & Custom Cakes in Renukoot"}
+              </p>
+              <p className="text-xs text-[#4D5156] line-clamp-2">
+                {localConfig.seoDefaultDescription ||
+                  "Order fresh celebration cakes, custom birthday cakes, pastries, and stone-baked pizzas from Lovey's Bakery & Pizza Corners in Renukoot, Sonbhadra."}
+              </p>
+            </div>
+
+            {/* Open Graph / Social Sharing Card Preview */}
+            <div className="p-4 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B544E]">
+                Open Graph / WhatsApp &amp; Facebook Link Card Preview
+              </p>
+              <div className="rounded-xl overflow-hidden border border-[#E6D7C8] bg-white max-w-md">
+                <img
+                  src={
+                    localConfig.ogImageUrl ||
+                    localConfig.heroImageUrl ||
+                    '/assets/hero/loveys-hero-spread.jpg'
+                  }
+                  alt="Social card preview"
+                  className="w-full h-40 object-cover"
+                />
+                <div className="p-3 space-y-0.5">
+                  <p className="text-[10px] uppercase text-[#6B544E] font-mono-num">
+                    DEMOLOVEYSBAKERYRENUKOOT.VERCEL.APP
+                  </p>
+                  <p className="font-bold text-xs text-[#3B2824] line-clamp-1">
+                    {localConfig.seoDefaultTitle ||
+                      "Lovey's Bakery & Pizza Corners | Bakery & Custom Cakes in Renukoot"}
+                  </p>
+                  <p className="text-[11px] text-[#6B544E] line-clamp-2">
+                    {localConfig.seoDefaultDescription}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block font-bold mb-1">Default Meta Description</label>
-            <textarea
-              rows={3}
-              value={localConfig.seoDefaultDescription || ''}
-              onChange={(e) =>
-                setLocalConfig({ ...localConfig, seoDefaultDescription: e.target.value })
-              }
-              className="w-full p-3 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
-            />
-          </div>
-          <div>
-            <label className="block font-bold mb-1">Target Local Keywords (Comma-Separated)</label>
-            <input
-              type="text"
-              value={localConfig.seoKeywords || ''}
-              onChange={(e) =>
-                setLocalConfig({ ...localConfig, seoKeywords: e.target.value })
-              }
-              className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1]"
-            />
-          </div>
-          <div className="p-4 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-1">
-            <p className="text-[11px] text-[#2D6A4F] font-mono-num">
-              https://loveysbakery.in &rsaquo; renukoot-sonbhadra
-            </p>
-            <p className="text-sm font-bold text-[#1A0DAB]">{localConfig.seoDefaultTitle}</p>
-            <p className="text-xs text-[#4D5156]">{localConfig.seoDefaultDescription}</p>
+
+          {/* Live SEO Health & Warnings Checklist (Phase 20) */}
+          <div className="lg:col-span-5 bg-white border border-[#E6D7C8] rounded-2xl p-6 space-y-4 h-fit">
+            <div>
+              <span className="px-2.5 py-0.5 rounded-lg bg-[#3B2824] text-[#E5B867] text-[10px] font-bold uppercase">
+                Automated SEO Diagnostics
+              </span>
+              <h3 className="font-serif text-lg font-bold mt-1">
+                Live SEO Health, Sitemap &amp; Schema Checklist
+              </h3>
+              <p className="text-[11px] text-[#6B544E]">
+                Real-time audit of your products, categories, custom pages, and local entity verification flags.
+              </p>
+            </div>
+
+            {(() => {
+              const unverifiedProducts = products.filter(
+                (p) => p.publicationStatus === 'needs_owner_verification'
+              );
+              const verifiedProducts = products.filter(
+                (p) =>
+                  p.publicationStatus === 'published' || p.publicationStatus === 'approved'
+              );
+              const missingAltProducts = products.filter(
+                (p) => !p.imageAlt || !p.imageAlt.trim()
+              );
+              const missingPriceProducts = products.filter(
+                (p) => !(p.basePrice ?? p.price)
+              );
+              const missingImageProducts = products.filter(
+                (p) => !p.imageUrl || !p.imageUrl.trim()
+              );
+              const unverifiedDesigns = cakeDesigns.filter(
+                (d) => d.publicationStatus === 'needs_owner_verification'
+              );
+              const coordsVerified = Boolean(settings?.coordinatesVerifiedByOwner);
+              const hoursVerified = Boolean(settings?.openingHoursVerifiedByOwner);
+
+              return (
+                <div className="space-y-2.5">
+                  <div
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                      unverifiedProducts.length > 0
+                        ? 'bg-[#FFF5F5] border-[#B94E62]/30 text-[#B94E62]'
+                        : 'bg-[#E8F5E9] border-[#2D6A4F]/30 text-[#2D6A4F]'
+                    }`}
+                  >
+                    {unverifiedProducts.length > 0 ? (
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-bold">
+                        {unverifiedProducts.length > 0
+                          ? `${unverifiedProducts.length} Starter Products Awaiting Owner Verification`
+                          : `All ${verifiedProducts.length} Products Verified & Indexed in Sitemap`}
+                      </p>
+                      <p className="text-[11px] opacity-90">
+                        {unverifiedProducts.length > 0
+                          ? 'Unverified starter products are currently excluded from /sitemap.xml and Product JSON-LD. Open Products to click "Verify & Index for SEO".'
+                          : 'Verified products are live in /sitemap.xml with ProductGroup schema.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                      !coordsVerified || !hoursVerified
+                        ? 'bg-[#FFF5F5] border-[#B94E62]/30 text-[#B94E62]'
+                        : 'bg-[#E8F5E9] border-[#2D6A4F]/30 text-[#2D6A4F]'
+                    }`}
+                  >
+                    {!coordsVerified || !hoursVerified ? (
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-bold">
+                        {!coordsVerified || !hoursVerified
+                          ? 'Store Coordinates / Opening Hours Pending Owner Confirmation'
+                          : 'Store GeoCoordinates & OpeningHours Verified in Schema.org'}
+                      </p>
+                      <p className="text-[11px] opacity-90">
+                        {!coordsVerified || !hoursVerified
+                          ? 'Go to Settings (/admin/settings) to confirm your exact Renukoot map pin and daily opening hours.'
+                          : 'Verified coordinates and hours are emitted in Bakery LocalBusiness JSON-LD.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                      missingAltProducts.length > 0
+                        ? 'bg-[#FFF5F5] border-[#B94E62]/30 text-[#B94E62]'
+                        : 'bg-[#E8F5E9] border-[#2D6A4F]/30 text-[#2D6A4F]'
+                    }`}
+                  >
+                    {missingAltProducts.length > 0 ? (
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-bold">
+                        {missingAltProducts.length > 0
+                          ? `${missingAltProducts.length} Products Using Auto-Fallback Image Alt Text`
+                          : 'All Products Have Custom Image Alt Text'}
+                      </p>
+                      <p className="text-[11px] opacity-90">
+                        Custom alt text helps your cakes and pizzas rank in Google Images for Renukoot searches.
+                      </p>
+                    </div>
+                  </div>
+
+                  {(missingPriceProducts.length > 0 || missingImageProducts.length > 0) && (
+                    <div className="p-3 rounded-xl border bg-[#FFF5F5] border-[#B94E62]/30 text-[#B94E62] flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">
+                          Missing Product Price or Photograph Detected
+                        </p>
+                        <p className="text-[11px]">
+                          {missingPriceProducts.length} without price · {missingImageProducts.length} without image.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {unverifiedDesigns.length > 0 && (
+                    <div className="p-3 rounded-xl border bg-[#FFF8F1] border-[#E6D7C8] text-[#3B2824] flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-[#B94E62]" />
+                      <div>
+                        <p className="font-bold">
+                          {unverifiedDesigns.length} Custom Cake Templates Awaiting Verification
+                        </p>
+                        <p className="text-[11px] text-[#6B544E]">
+                          Open Custom Cakes (/admin/cakes) to verify starter templates for `/cakes/:slug` indexing.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-3 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-1 text-[11px]">
+                    <p className="font-bold text-[#3B2824]">Public SEO Endpoints Status:</p>
+                    <p className="font-mono-num text-[#2D6A4F]">
+                      &bull; Dynamic XML Sitemap: <a href="/sitemap.xml" target="_blank" rel="noreferrer" className="underline">/sitemap.xml</a> ({categories.filter((c) => c.isActive).length} categories, {verifiedProducts.length} verified products)
+                    </p>
+                    <p className="font-mono-num text-[#2D6A4F]">
+                      &bull; Crawler Policy: <a href="/robots.txt" target="_blank" rel="noreferrer" className="underline">/robots.txt</a> (Googlebot, Bingbot, OAI-SearchBot, Claude-SearchBot allowed)
+                    </p>
+                    <p className="font-mono-num text-[#2D6A4F]">
+                      &bull; Bilingual Hindi Hub: <a href="/hi" target="_blank" rel="noreferrer" className="underline">/hi</a> (en-IN &amp; hi-IN hreflang active)
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Compass,
   CheckCircle2,
+  Star,
 } from 'lucide-react';
 
 export const LOVEYS_COORDS = {
@@ -21,30 +22,26 @@ const RENUKOOT_LANDMARKS = [
   {
     label: 'Hindalco Colony',
     query: 'Hindalco Colony, Renukoot',
-    distanceText: '1.8 km',
-    durationText: '5 mins drive',
-    routeHint: 'Via Main Renukoot–Varanasi Highway towards Punjab National Bank & Tiwari Hotel',
+    routeHint:
+      'Follow the main Renukoot Market Road towards Punjab National Bank (PNB), directly in front of Tiwari Hotel.',
   },
   {
     label: 'Murdhawa Market',
     query: 'Murdhawa, Renukoot',
-    distanceText: '2.6 km',
-    durationText: '7 mins drive',
-    routeHint: 'Straight along NH-39 Main Market Road past Hindalco Hospital towards PNB',
+    routeHint:
+      'Proceed along NH-39 Main Market Road past Hindalco Hospital towards Punjab National Bank and Tiwari Hotel.',
   },
   {
     label: 'Pipri / Rihand Road',
     query: 'Pipri, Sonbhadra',
-    distanceText: '5.4 km',
-    durationText: '12 mins drive',
-    routeHint: 'Via Pipri Main Road into Renukoot Market, opposite Tiwari Hotel',
+    routeHint:
+      'Head along Pipri–Renukoot Main Road into Renukoot Main Market, opposite Tiwari Hotel near Punjab National Bank.',
   },
   {
     label: 'Renukoot Railway Station',
     query: 'Renukoot Railway Station',
-    distanceText: '1.2 km',
-    durationText: '4 mins drive',
-    routeHint: 'Exit station road onto Main Market Road, right in front of Tiwari Hotel near PNB',
+    routeHint:
+      'Exit the station road onto Renukoot Main Market Road, located in front of Tiwari Hotel near Punjab National Bank.',
   },
 ];
 
@@ -54,6 +51,11 @@ interface StoreMapSectionProps {
   whatsapp?: string;
   openingHours?: string;
   googleMapsUrl?: string;
+  googleReviewUrl?: string;
+  coordinatesLat?: number;
+  coordinatesLng?: number;
+  coordinatesVerifiedByOwner?: boolean;
+  openingHoursVerifiedByOwner?: boolean;
   compact?: boolean;
 }
 
@@ -61,8 +63,13 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
   address = 'In front of Tiwari Hotel, near Punjab National Bank, Renukoot, Sonbhadra, Uttar Pradesh 231217, India',
   phone = '+91 80905 29971',
   whatsapp = '+918090529971',
-  openingHours = 'Daily: 10:00 AM – 10:00 PM',
+  openingHours = 'Daily: 10:00 AM – 10:00 PM (Confirm holiday hours with store)',
   googleMapsUrl = "https://www.google.com/maps/place/Lovey's+Bakery+%26+Pizza+Corners/",
+  googleReviewUrl = '',
+  coordinatesLat = LOVEYS_COORDS.lat,
+  coordinatesLng = LOVEYS_COORDS.lng,
+  coordinatesVerifiedByOwner = false,
+  openingHoursVerifiedByOwner = false,
   compact = false,
 }) => {
   const [originInput, setOriginInput] = useState('Hindalco Colony, Renukoot');
@@ -75,12 +82,12 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
   return (
     <div className="bg-white border border-[#E6D7C8] rounded-3xl overflow-hidden shadow-sm">
       <div className={`grid grid-cols-1 ${compact ? 'lg:grid-cols-12' : 'lg:grid-cols-12'}`}>
-        {/* Left: Store Details & Directions Calculator */}
+        {/* Left: Store Details & Directions Planner */}
         <div className="lg:col-span-5 p-6 sm:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-[#E6D7C8] bg-[#FFF8F1]/60">
           <div className="space-y-5">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-[#B94E62] font-semibold mb-1.5">
-                Visit Our Renukoot Flagship Bakery
+                Visit Our Renukoot Bakery &amp; Café
               </p>
               <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#3B2824]">
                 Lovey&apos;s Bakery &amp; Pizza Corners
@@ -102,7 +109,14 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
               <div className="flex items-start gap-3">
                 <Clock className="w-4 h-4 text-[#B94E62] shrink-0 mt-1" />
                 <div>
-                  <p className="font-semibold">Baking &amp; Dining Hours</p>
+                  <p className="font-semibold">
+                    Store &amp; Ordering Hours{' '}
+                    {openingHoursVerifiedByOwner ? (
+                      <span className="text-[10px] font-bold uppercase text-[#2D6A4F] ml-1">
+                        (Owner Verified)
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="text-[#6B544E]">{openingHours}</p>
                 </div>
               </div>
@@ -111,18 +125,26 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
                 <Phone className="w-4 h-4 text-[#B94E62] shrink-0 mt-1" />
                 <div>
                   <p className="font-semibold">Direct Phone &amp; WhatsApp Desk</p>
-                  <p className="text-[#6B544E] font-mono-num">{phone}</p>
+                  <p className="text-[#6B544E] font-mono-num">
+                    <a href={`tel:${phone.replace(/\s+/g, '')}`} className="hover:underline">
+                      {phone}
+                    </a>
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Turn-by-Turn Route Planner */}
             <div className="pt-4 border-t border-[#E6D7C8] space-y-2.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B544E]">
+              <label
+                htmlFor="store-route-origin-input"
+                className="block text-xs font-semibold uppercase tracking-wider text-[#6B544E]"
+              >
                 Get Driving Directions in Renukoot / Sonbhadra
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
+                  id="store-route-origin-input"
                   type="text"
                   value={originInput}
                   onChange={(e) => {
@@ -135,13 +157,13 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
                     if (matched) setSelectedLandmark(matched);
                   }}
                   placeholder="Enter locality (e.g. Hindalco Colony, Pipri)"
-                  className="flex-1 px-3.5 py-2 text-sm rounded-xl border border-[#E6D7C8] bg-white text-[#3B2824] focus:outline-none focus:border-[#B94E62]"
+                  className="flex-1 min-w-0 px-3.5 py-2 text-sm rounded-xl border border-[#E6D7C8] bg-white text-[#3B2824] focus:outline-none focus:border-[#B94E62]"
                 />
                 <a
                   href={directionsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3.5 py-2 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold whitespace-nowrap shrink-0 hover:bg-[#B94E62] transition-colors flex items-center gap-1.5"
+                  className="px-3.5 py-2.5 sm:py-2 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold whitespace-nowrap shrink-0 hover:bg-[#B94E62] transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Navigation className="w-3.5 h-3.5" />
                   Directions
@@ -171,9 +193,9 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
                 })}
               </div>
 
-              <p className="mt-1 text-xs text-[#2D6A4F] font-medium font-mono-num">
-                Estimated Drive from {selectedLandmark.label}: {selectedLandmark.distanceText} ·{' '}
-                {selectedLandmark.durationText}
+              <p className="mt-1 text-xs text-[#2D6A4F] font-medium">
+                Landmark Route from {selectedLandmark.label}: Opposite Tiwari Hotel, near Punjab
+                National Bank, Renukoot Main Market
               </p>
             </div>
           </div>
@@ -206,6 +228,17 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
             >
               WhatsApp Desk
             </a>
+            {googleReviewUrl && googleReviewUrl.trim().startsWith('http') && (
+              <a
+                href={googleReviewUrl.trim()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 rounded-xl border border-[#E5B867] bg-[#FFF8F1] text-[#3B2824] text-xs font-semibold whitespace-nowrap shrink-0 hover:border-[#B94E62] transition-colors inline-flex items-center gap-1.5"
+              >
+                <Star className="w-3.5 h-3.5 text-[#E5B867]" />
+                Review Us on Google
+              </a>
+            )}
           </div>
         </div>
 
@@ -217,7 +250,9 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
               Renukoot Main Market Landmark Guide
             </span>
             <span className="px-3 py-1 rounded-lg bg-white/90 border border-[#E6D7C8] text-[11px] font-mono-num font-semibold text-[#3B2824]">
-              GPS: {LOVEYS_COORDS.lat}° N, {LOVEYS_COORDS.lng}° E · PIN 231217
+              {coordinatesVerifiedByOwner
+                ? `Verified Pin: ${coordinatesLat}° N, ${coordinatesLng}° E · PIN 231217`
+                : 'Renukoot, Sonbhadra · PIN 231217'}
             </span>
           </div>
 
@@ -231,7 +266,7 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-widest text-[#2D6A4F] flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    Verified Flagship Store Location
+                    Official Renukoot Bakery &amp; Café Location
                   </span>
                   <h4 className="font-serif text-xl sm:text-2xl font-bold text-[#3B2824] mt-0.5">
                     Lovey&apos;s Bakery &amp; Pizza Corners
@@ -247,8 +282,8 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
                 <span className="text-xs font-bold text-[#3B2824]">
                   Selected Route: {originInput || selectedLandmark.label} &rarr; Lovey&apos;s Bakery
                 </span>
-                <span className="px-2.5 py-0.5 rounded-md bg-[#E8F5E9] text-[#2D6A4F] font-mono-num text-xs font-bold">
-                  {selectedLandmark.distanceText} · {selectedLandmark.durationText}
+                <span className="px-2.5 py-0.5 rounded-md bg-[#E8F5E9] text-[#2D6A4F] text-xs font-bold">
+                  Live Google Maps Turn-by-Turn
                 </span>
               </div>
               <p className="text-xs text-[#6B544E]">{selectedLandmark.routeHint}</p>
@@ -270,9 +305,9 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
               </div>
               <div className="p-3 rounded-xl bg-[#FFF8F1]/70 border border-[#E6D7C8]">
                 <span className="text-[10px] font-bold uppercase text-[#B94E62] block">
-                  Delivery Radius
+                  Service Coverage
                 </span>
-                <span className="font-bold text-[#3B2824]">Renukoot, Murdhawa &amp; Pipri</span>
+                <span className="font-bold text-[#3B2824]">Confirmed Renukoot PIN Zones</span>
               </div>
             </div>
           </div>
@@ -282,21 +317,21 @@ export const StoreMapSection: React.FC<StoreMapSectionProps> = ({
               href={directionsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-5 py-2.5 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold hover:bg-[#B94E62] transition-colors inline-flex items-center gap-2"
+              className="w-full sm:w-auto max-w-full px-5 py-2.5 rounded-xl bg-[#3B2824] text-[#FFF8F1] text-xs font-semibold hover:bg-[#B94E62] transition-colors inline-flex items-center justify-center gap-2 text-center"
             >
-              <Navigation className="w-3.5 h-3.5 text-[#E5B867]" />
-              Launch Turn-by-Turn Route from {originInput || 'Your Location'}
-              <ExternalLink className="w-3.5 h-3.5" />
+              <Navigation className="w-3.5 h-3.5 text-[#E5B867] shrink-0" />
+              <span className="truncate">Launch Turn-by-Turn Route from {originInput || 'Your Location'}</span>
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
             </a>
 
             <a
               href={googleMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2.5 rounded-xl bg-white border border-[#E6D7C8] text-[#3B2824] text-xs font-semibold hover:border-[#B94E62] transition-colors inline-flex items-center gap-1.5"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white border border-[#E6D7C8] text-[#3B2824] text-xs font-semibold hover:border-[#B94E62] transition-colors inline-flex items-center justify-center gap-1.5"
             >
               View Store Pin on Google Maps
-              <ExternalLink className="w-3.5 h-3.5 text-[#B94E62]" />
+              <ExternalLink className="w-3.5 h-3.5 text-[#B94E62] shrink-0" />
             </a>
           </div>
         </div>

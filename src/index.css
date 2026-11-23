@@ -11,14 +11,21 @@
     --pistachio-sage: #A7B89A;
   }
 
+  html {
+    max-width: 100%;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: #FFF8F1;
     color: #3B2824;
-    overflow-x: hidden;
+    max-width: 100%;
+    overflow-x: clip;
   }
 
-  h1, h2, h3, .font-display {
+  h1, h2, h3, .font-display, .font-serif {
     font-family: 'Cormorant Garamond', Georgia, serif;
     text-wrap: balance;
   }
@@ -26,6 +33,19 @@
   .font-mono-num {
     font-family: 'JetBrains Mono', monospace;
     font-variant-numeric: tabular-nums;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  img, video, canvas, svg {
+    max-width: 100%;
   }
 }
 

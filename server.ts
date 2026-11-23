@@ -12,6 +12,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import fs from 'fs';
+import {
+  INITIAL_BUSINESS_SETTINGS,
+  INITIAL_WEBSITE_CONFIG,
+  INITIAL_PAYMENT_SETTINGS,
+  INITIAL_CATEGORIES,
+  INITIAL_PRODUCTS,
+  INITIAL_CAKE_DESIGNS,
+  INITIAL_CUSTOM_PAGES,
+  INITIAL_DELIVERY_ZONES,
+} from './src/data/initialCatalogue';
+import {
+  DEFAULT_PUBLIC_ORIGIN,
+  normalizePublicOrigin,
+  resolveRouteSeoAndHtml,
+  isProductOwnerVerifiedAndPublished,
+  isCakeDesignOwnerVerifiedAndPublished,
+  buildAbsoluteUrl,
+  RouteSeoSnapshotData,
+} from './src/utils/seoEngine';
 
 // ============================================================================
 // PASSWORD-ONLY ADMIN AUTHENTICATION ENGINE (NO OTP / NO PASSKEYS / NO WEBAUTHN)
@@ -29,6 +48,7 @@ interface StoredAdminAccount {
   status: 'active' | 'invited' | 'suspended' | 'revoked';
   passwordHash: string; // scrypt$saltHex$derivedKeyHex
   requirePasswordChange: boolean;
+  mustChangePassword?: boolean;
   sessionVersion: number;
   sessionTimeoutMinutes: number;
   lastLoginAt?: string;
@@ -63,7 +83,14 @@ interface LoginHistoryEntry {
   roleName?: string;
   ipAddress: string;
   userAgent: string;
-  outcome: 'success' | 'failure' | 'lockout' | 'password_changed' | 'password_reset' | 'session_revoked';
+  outcome:
+    | 'success'
+    | 'failure'
+    | 'lockout'
+    | 'password_changed'
+    | 'email_changed'
+    | 'password_reset'
+    | 'session_revoked';
   reason: string;
   suspicious: boolean;
   createdAt: string;
@@ -180,15 +207,29 @@ const AUTH_STORE_FILE = path.join(AUTH_STORE_DIR, 'admin-auth-store.json');
 const OWNER_DEFAULT_PERMISSIONS =
   'view,create,edit,publish,delete_archive,export_csv,approve_orders,verify_payments,manage_settings,invite_staff';
 
+// Pre-computed irreversible Scrypt hash (N=16384, r=8, p=1, keylen=64) for the initial temporary handover credential.
+// Plaintext password is NEVER stored in source code or repository files.
+const DEFAULT_OWNER_INITIAL_SCRYPT_HASH =
+  'scrypt$4c6f766579734f776e657253616c7432303236$272406fa7f1f95fb413f432b6fbc89bb16af5394073c361a39ba06068ac949a76e953d4198e8cd1343f9bfc6d3a6e732e241edca6b5e5bccbcc3ff747c8d0074';
+
+function resolveInitialOwnerPasswordHash(): string {
+  const envTempPassword = process.env.INITIAL_OWNER_TEMP_PASSWORD;
+  if (envTempPassword && envTempPassword.trim().length >= 12) {
+    return hashPasswordScrypt(envTempPassword.trim());
+  }
+  return DEFAULT_OWNER_INITIAL_SCRYPT_HASH;
+}
+
 function loadAdminAuthStore(): AdminAuthStoreData {
   const nowIso = new Date().toISOString();
+  const initialOwnerHash = resolveInitialOwnerPasswordHash();
 
   let store: AdminAuthStoreData = {
-    ownerConfigured: false,
+    ownerConfigured: true,
     accounts: [
       {
-        id: 'staff-owner-bootstrapped',
-        email: 'prabhve5@gmail.com',
+        id: 'staff-owner-default',
+        email: 'owner@loveys-demo.test',
         username: 'owner',
         name: "Lovey's Principal Owner",
         phone: '+91 80905 29971',
@@ -196,8 +237,9 @@ function loadAdminAuthStore(): AdminAuthStoreData {
         roleName: 'Owner / Super Admin',
         permissionsSummary: OWNER_DEFAULT_PERMISSIONS,
         status: 'active',
-        passwordHash: '',
-        requirePasswordChange: false,
+        passwordHash: initialOwnerHash,
+        requirePasswordChange: true,
+        mustChangePassword: true,
         sessionVersion: 1,
         sessionTimeoutMinutes: 60,
         passwordUpdatedAt: nowIso,
@@ -209,6 +251,8 @@ function loadAdminAuthStore(): AdminAuthStoreData {
     loginHistory: [],
     resetTokens: [],
   };
+
+  let needsPersistenceSync = false;
 
   try {
     if (fs.existsSync(AUTH_STORE_FILE)) {
@@ -223,15 +267,80 @@ function loadAdminAuthStore(): AdminAuthStoreData {
           resetTokens: Array.isArray(parsed.resetTokens) ? parsed.resetTokens : [],
         };
       }
+    } else {
+      needsPersistenceSync = true;
     }
   } catch (err) {
     console.warn('Admin auth store read fallback:', err);
   }
 
-  const ownerAcc = store.accounts.find(
-    (a) => a.email.toLowerCase() === 'prabhve5@gmail.com' || a.roleId === 'role-owner'
+  // Safely reconcile the default Owner / Super Admin account without creating duplicate owner records
+  let ownerAcc = store.accounts.find(
+    (a) =>
+      a.email.toLowerCase() === 'owner@loveys-demo.test' ||
+      a.roleId === 'role-owner' ||
+      a.email.toLowerCase() === 'prabhve5@gmail.com'
   );
+
+  if (!ownerAcc) {
+    ownerAcc = {
+      id: 'staff-owner-default',
+      email: 'owner@loveys-demo.test',
+      username: 'owner',
+      name: "Lovey's Principal Owner",
+      phone: '+91 80905 29971',
+      roleId: 'role-owner',
+      roleName: 'Owner / Super Admin',
+      permissionsSummary: OWNER_DEFAULT_PERMISSIONS,
+      status: 'active',
+      passwordHash: initialOwnerHash,
+      requirePasswordChange: true,
+      mustChangePassword: true,
+      sessionVersion: 1,
+      sessionTimeoutMinutes: 60,
+      passwordUpdatedAt: nowIso,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    store.accounts.unshift(ownerAcc);
+    needsPersistenceSync = true;
+  } else {
+    // Reconcile unconfigured placeholder or ensure owner permissions and flags are intact
+    if (!ownerAcc.passwordHash) {
+      ownerAcc.id = 'staff-owner-default';
+      ownerAcc.email = 'owner@loveys-demo.test';
+      ownerAcc.username = ownerAcc.username || 'owner';
+      ownerAcc.name = ownerAcc.name || "Lovey's Principal Owner";
+      ownerAcc.roleId = 'role-owner';
+      ownerAcc.roleName = 'Owner / Super Admin';
+      ownerAcc.permissionsSummary = OWNER_DEFAULT_PERMISSIONS;
+      ownerAcc.status = 'active';
+      ownerAcc.passwordHash = initialOwnerHash;
+      ownerAcc.requirePasswordChange = true;
+      ownerAcc.mustChangePassword = true;
+      ownerAcc.updatedAt = nowIso;
+      needsPersistenceSync = true;
+    } else {
+      ownerAcc.roleId = 'role-owner';
+      ownerAcc.roleName = 'Owner / Super Admin';
+      ownerAcc.permissionsSummary = OWNER_DEFAULT_PERMISSIONS;
+      ownerAcc.status = 'active';
+      ownerAcc.mustChangePassword = Boolean(ownerAcc.requirePasswordChange);
+    }
+  }
+
   store.ownerConfigured = Boolean(ownerAcc && ownerAcc.passwordHash);
+
+  if (needsPersistenceSync) {
+    try {
+      if (!fs.existsSync(AUTH_STORE_DIR)) {
+        fs.mkdirSync(AUTH_STORE_DIR, { recursive: true });
+      }
+      fs.writeFileSync(AUTH_STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('Initial owner store sync fallback:', err);
+    }
+  }
 
   return store;
 }
@@ -327,6 +436,7 @@ function getAuthenticatedSession(
 }
 
 function sanitizeAccountForClient(acc: StoredAdminAccount) {
+  const mustChange = Boolean(acc.requirePasswordChange || acc.mustChangePassword);
   return {
     id: acc.id,
     email: acc.email,
@@ -337,7 +447,8 @@ function sanitizeAccountForClient(acc: StoredAdminAccount) {
     roleName: acc.roleName,
     permissionsSummary: acc.permissionsSummary,
     status: acc.status,
-    requirePasswordChange: acc.requirePasswordChange,
+    requirePasswordChange: mustChange,
+    mustChangePassword: mustChange,
     sessionVersion: acc.sessionVersion,
     sessionTimeoutMinutes: acc.sessionTimeoutMinutes,
     lastLoginAt: acc.lastLoginAt,
@@ -358,18 +469,183 @@ function recordLoginEvent(entry: Omit<LoginHistoryEntry, 'id' | 'createdAt'>): v
   }
 }
 
+const SEO_SNAPSHOT_FILE = path.join(AUTH_STORE_DIR, 'public-seo-snapshot.json');
+
+function loadPublicSeoSnapshot(): RouteSeoSnapshotData {
+  const defaultSnapshot: RouteSeoSnapshotData = {
+    settings: INITIAL_BUSINESS_SETTINGS,
+    websiteConfig: INITIAL_WEBSITE_CONFIG,
+    paymentSettings: INITIAL_PAYMENT_SETTINGS,
+    categories: INITIAL_CATEGORIES,
+    products: INITIAL_PRODUCTS,
+    cakeDesigns: INITIAL_CAKE_DESIGNS,
+    customPages: INITIAL_CUSTOM_PAGES,
+    deliveryZones: INITIAL_DELIVERY_ZONES,
+  };
+  try {
+    if (fs.existsSync(SEO_SNAPSHOT_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(SEO_SNAPSHOT_FILE, 'utf8'));
+      return {
+        settings: { ...INITIAL_BUSINESS_SETTINGS, ...(raw.settings || {}) },
+        websiteConfig: { ...INITIAL_WEBSITE_CONFIG, ...(raw.websiteConfig || {}) },
+        paymentSettings: { ...INITIAL_PAYMENT_SETTINGS, ...(raw.paymentSettings || {}) },
+        categories: Array.isArray(raw.categories) && raw.categories.length > 0 ? raw.categories : INITIAL_CATEGORIES,
+        products: Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : INITIAL_PRODUCTS,
+        cakeDesigns: Array.isArray(raw.cakeDesigns) && raw.cakeDesigns.length > 0 ? raw.cakeDesigns : INITIAL_CAKE_DESIGNS,
+        customPages: Array.isArray(raw.customPages) && raw.customPages.length > 0 ? raw.customPages : INITIAL_CUSTOM_PAGES,
+        deliveryZones: Array.isArray(raw.deliveryZones) && raw.deliveryZones.length > 0 ? raw.deliveryZones : INITIAL_DELIVERY_ZONES,
+      };
+    }
+  } catch (err) {
+    console.warn('Could not read public SEO snapshot cache, using default snapshot:', err);
+  }
+  return defaultSnapshot;
+}
+
+let publicSeoSnapshot: RouteSeoSnapshotData = loadPublicSeoSnapshot();
+
+function savePublicSeoSnapshot(next: Partial<RouteSeoSnapshotData>): void {
+  try {
+    if (!fs.existsSync(AUTH_STORE_DIR)) {
+      fs.mkdirSync(AUTH_STORE_DIR, { recursive: true });
+    }
+    publicSeoSnapshot = {
+      settings: next.settings ? { ...publicSeoSnapshot.settings, ...next.settings } : publicSeoSnapshot.settings,
+      websiteConfig: next.websiteConfig ? { ...publicSeoSnapshot.websiteConfig, ...next.websiteConfig } : publicSeoSnapshot.websiteConfig,
+      paymentSettings: next.paymentSettings ? { ...publicSeoSnapshot.paymentSettings, ...next.paymentSettings } : publicSeoSnapshot.paymentSettings,
+      categories: Array.isArray(next.categories) && next.categories.length > 0 ? next.categories : publicSeoSnapshot.categories,
+      products: Array.isArray(next.products) && next.products.length > 0 ? next.products : publicSeoSnapshot.products,
+      cakeDesigns: Array.isArray(next.cakeDesigns) && next.cakeDesigns.length > 0 ? next.cakeDesigns : publicSeoSnapshot.cakeDesigns,
+      customPages: Array.isArray(next.customPages) && next.customPages.length > 0 ? next.customPages : publicSeoSnapshot.customPages,
+      deliveryZones: Array.isArray(next.deliveryZones) && next.deliveryZones.length > 0 ? next.deliveryZones : publicSeoSnapshot.deliveryZones,
+    };
+    fs.writeFileSync(SEO_SNAPSHOT_FILE, JSON.stringify(publicSeoSnapshot, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to persist public SEO snapshot:', err);
+  }
+}
+
+function escapeXmlAttr(str: string): string {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function injectRouteSeoIntoHtmlTemplate(rawHtml: string, reqPath: string, origin: string): { html: string; status: 200 | 404; robots: string } {
+  const seo = resolveRouteSeoAndHtml(reqPath, origin, publicSeoSnapshot);
+
+  const safeTitle = escapeXmlAttr(seo.title);
+  const safeDesc = escapeXmlAttr(seo.description);
+  const safeCanonical = escapeXmlAttr(seo.canonicalUrl);
+  const safeOgImage = escapeXmlAttr(seo.ogImage);
+  const safeRobots = escapeXmlAttr(seo.robots);
+
+  let html = rawHtml;
+  html = html.replace(/<html[^>]*lang="[^"]*"[^>]*>/i, `<html lang="${seo.htmlLang}">`);
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`);
+  html = html.replace(
+    /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i,
+    `<meta name="description" content="${safeDesc}" />`
+  );
+  html = html.replace(
+    /<meta\s+name="robots"\s+content="[^"]*"\s*\/?>/i,
+    `<meta name="robots" content="${safeRobots}" />`
+  );
+  html = html.replace(
+    /<meta\s+property="og:type"\s+content="[^"]*"\s*\/?>/i,
+    `<meta property="og:type" content="${seo.ogType}" />`
+  );
+  html = html.replace(
+    /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i,
+    `<meta property="og:title" content="${safeTitle}" />`
+  );
+  html = html.replace(
+    /<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i,
+    `<meta property="og:description" content="${safeDesc}" />`
+  );
+  html = html.replace(
+    /<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i,
+    `<meta property="og:url" content="${safeCanonical}" />`
+  );
+  html = html.replace(
+    /<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i,
+    `<meta property="og:image" content="${safeOgImage}" />`
+  );
+  html = html.replace(
+    /<meta\s+name="twitter:title"\s+content="[^"]*"\s*\/?>/i,
+    `<meta name="twitter:title" content="${safeTitle}" />`
+  );
+  html = html.replace(
+    /<meta\s+name="twitter:description"\s+content="[^"]*"\s*\/?>/i,
+    `<meta name="twitter:description" content="${safeDesc}" />`
+  );
+  html = html.replace(
+    /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?>/i,
+    `<meta name="twitter:image" content="${safeOgImage}" />`
+  );
+  html = html.replace(
+    /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i,
+    `<link rel="canonical" href="${safeCanonical}" />`
+  );
+
+  // Hreflang alternates: only emit when reciprocal translated route exists
+  const hreflangBlock =
+    seo.hreflangEnUrl && seo.hreflangHiUrl
+      ? [
+          `<link rel="alternate" hreflang="en-IN" href="${escapeXmlAttr(seo.hreflangEnUrl)}" />`,
+          `<link rel="alternate" hreflang="hi-IN" href="${escapeXmlAttr(seo.hreflangHiUrl)}" />`,
+          `<link rel="alternate" hreflang="x-default" href="${escapeXmlAttr(seo.hreflangDefaultUrl || seo.hreflangEnUrl)}" />`,
+        ].join('\n    ')
+      : '';
+
+  html = html.replace(
+    /<link\s+rel="alternate"\s+hreflang="en-IN"[\s\S]*?<link\s+rel="alternate"\s+hreflang="x-default"\s+href="[^"]*"\s*\/?>/i,
+    hreflangBlock
+  );
+
+  // Replace JSON-LD script
+  html = html.replace(
+    /<script\s+id="loveys-jsonld"\s+type="application\/ld\+json">[\s\S]*?<\/script>/i,
+    `<script id="loveys-jsonld" type="application/ld+json">\n${JSON.stringify(seo.jsonLdGraph, null, 2)}\n    </script>`
+  );
+
+  // Inject meaningful route-specific HTML body into #root
+  html = html.replace('<!--SSR_OUTLET-->', seo.ssrBodyHtml);
+
+  return {
+    html,
+    status: seo.httpStatus,
+    robots: seo.robots,
+  };
+}
+
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
 
   app.use(express.json({ limit: '25mb' }));
 
-  // Enterprise Security Headers & Search Engine Protection for /admin
+  // Enterprise Security Headers & Search Engine Index Management (Phase 12)
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
-    if (req.path.startsWith('/admin') || req.path.startsWith('/api/admin')) {
+
+    const cleanPath = req.path.replace(/^\/hi(\/|$)/, '/');
+    const isPrivateOrTransactional =
+      cleanPath.startsWith('/admin') ||
+      cleanPath.startsWith('/api/') ||
+      cleanPath === '/cart' ||
+      cleanPath === '/checkout' ||
+      cleanPath === '/track-order' ||
+      cleanPath.startsWith('/order/') ||
+      cleanPath.startsWith('/orders/') ||
+      cleanPath.startsWith('/payment/');
+
+    if (isPrivateOrTransactional) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     }
@@ -377,65 +653,213 @@ async function startServer() {
   });
 
   // ============================================================================
-  // 1. SEO ROUTES: /robots.txt & /sitemap.xml
+  // 1. SEO ROUTES: /robots.txt, /sitemap.xml & /api/seo/sync-snapshot
   // ============================================================================
-  app.get('/robots.txt', (req, res) => {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.APP_URL ||
-      `${req.protocol}://${req.get('host')}`;
+  app.get('/robots.txt', (_req, res) => {
+    const baseUrl = normalizePublicOrigin(
+      process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_URL || DEFAULT_PUBLIC_ORIGIN
+    );
     res.type('text/plain').send(
       [
+        '# Lovey\'s Bakery & Pizza Corners — Renukoot, Sonbhadra, Uttar Pradesh',
+        '# Search & Generative Answer Engine Crawling Policy',
+        'User-agent: Googlebot',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        '',
+        'User-agent: Bingbot',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        '',
+        'User-agent: OAI-SearchBot',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        '',
+        'User-agent: Claude-SearchBot',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        '',
         'User-agent: *',
         'Allow: /',
         'Disallow: /admin',
         'Disallow: /api/',
-        'Disallow: /payment/',
+        '',
         `Sitemap: ${baseUrl}/sitemap.xml`,
       ].join('\n')
     );
   });
 
-  app.get('/sitemap.xml', (req, res) => {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.APP_URL ||
-      `${req.protocol}://${req.get('host')}`;
-    const publicRoutes = [
-      '/',
-      '/menu',
-      '/cakes',
-      '/custom-cake',
-      '/gallery',
-      '/about',
-      '/contact',
-      '/track-order',
-      '/categories/birthday-cakes',
-      '/categories/designer-cakes',
-      '/categories/chocolate-cakes',
-      '/categories/anniversary-cakes',
-      '/categories/pastries-desserts',
-      '/categories/pizza',
-      '/categories/burgers',
-      '/categories/waffles',
-      '/privacy-policy',
-      '/terms',
-      '/delivery-policy',
-      '/cancellation-policy',
+  app.get('/sitemap.xml', (_req, res) => {
+    const baseUrl = normalizePublicOrigin(
+      process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_URL || DEFAULT_PUBLIC_ORIGIN
+    );
+    const verifiedLastMod =
+      (publicSeoSnapshot.websiteConfig.updatedAt || '2026-11-20T00:00:00.000Z').slice(0, 10);
+
+    interface SitemapUrlEntry {
+      loc: string;
+      lastmod: string;
+      imageLoc?: string;
+      imageTitle?: string;
+    }
+
+    const entries: SitemapUrlEntry[] = [
+      {
+        loc: `${baseUrl}/`,
+        lastmod: verifiedLastMod,
+        imageLoc: buildAbsoluteUrl(baseUrl, '/assets/hero/loveys-hero-spread.jpg'),
+        imageTitle: "Lovey's Bakery & Pizza Corners — Renukoot",
+      },
+      { loc: `${baseUrl}/hi`, lastmod: verifiedLastMod },
+      {
+        loc: `${baseUrl}/menu`,
+        lastmod: verifiedLastMod,
+        imageLoc: buildAbsoluteUrl(baseUrl, '/assets/pizza/loveys-stone-baked-pizza.jpg'),
+        imageTitle: "Bakery, Pizza & Food Menu in Renukoot — Lovey's",
+      },
+      { loc: `${baseUrl}/hi/menu`, lastmod: verifiedLastMod },
+      {
+        loc: `${baseUrl}/cakes`,
+        lastmod: verifiedLastMod,
+        imageLoc: buildAbsoluteUrl(baseUrl, '/assets/cakes/loveys-chocolate-truffle-gateau.jpg'),
+        imageTitle: "Birthday, Chocolate & Designer Cakes in Renukoot — Lovey's",
+      },
+      { loc: `${baseUrl}/hi/cakes`, lastmod: verifiedLastMod },
+      {
+        loc: `${baseUrl}/custom-cake`,
+        lastmod: verifiedLastMod,
+        imageLoc: buildAbsoluteUrl(baseUrl, '/assets/cakes/loveys-tier-celebration-cake.jpg'),
+        imageTitle: "Custom Birthday & Celebration Cakes in Renukoot — Lovey's",
+      },
+      { loc: `${baseUrl}/hi/custom-cake`, lastmod: verifiedLastMod },
+      {
+        loc: `${baseUrl}/gallery`,
+        lastmod: verifiedLastMod,
+        imageLoc: buildAbsoluteUrl(baseUrl, '/assets/bakery/loveys-pastries-cookies.jpg'),
+        imageTitle: "Lovey's Bakery & Pizza Corners Photo Gallery",
+      },
+      { loc: `${baseUrl}/hi/gallery`, lastmod: verifiedLastMod },
+      {
+        loc: `${baseUrl}/contact`,
+        lastmod: verifiedLastMod,
+        imageLoc: buildAbsoluteUrl(baseUrl, '/assets/store/loveys-bakery-table.jpg'),
+        imageTitle: "Lovey's Bakery Store Location in Renukoot",
+      },
+      { loc: `${baseUrl}/hi/contact`, lastmod: verifiedLastMod },
     ];
+
+    // Active indexable categories
+    for (const cat of publicSeoSnapshot.categories) {
+      if (cat.isActive && !cat.noindex) {
+        entries.push({
+          loc: `${baseUrl}/categories/${cat.slug}`,
+          lastmod: (cat.updatedAt || verifiedLastMod).slice(0, 10),
+          imageLoc: cat.imageUrl ? buildAbsoluteUrl(baseUrl, cat.imageUrl) : undefined,
+          imageTitle: `${cat.name} in Renukoot — Lovey's Bakery`,
+        });
+      }
+    }
+
+    // Phase 8 & 13: ONLY owner-verified and published products enter the public sitemap
+    for (const prod of publicSeoSnapshot.products) {
+      if (isProductOwnerVerifiedAndPublished(prod)) {
+        const isCake = (prod.categorySlug || prod.categoryId || '').includes('cake');
+        const routePrefix = isCake ? '/cakes/' : '/menu/';
+        entries.push({
+          loc: `${baseUrl}${routePrefix}${prod.slug}`,
+          lastmod: (prod.updatedAt || prod.ownerVerifiedAt || verifiedLastMod).slice(0, 10),
+          imageLoc: prod.imageUrl ? buildAbsoluteUrl(baseUrl, prod.imageUrl) : undefined,
+          imageTitle: prod.name,
+        });
+      }
+    }
+
+    // Owner-verified & published cake designs
+    for (const design of publicSeoSnapshot.cakeDesigns) {
+      if (design.slug && isCakeDesignOwnerVerifiedAndPublished(design)) {
+        entries.push({
+          loc: `${baseUrl}/cakes/${design.slug}`,
+          lastmod: (design.updatedAt || design.ownerVerifiedAt || verifiedLastMod).slice(0, 10),
+          imageLoc: design.imageUrl ? buildAbsoluteUrl(baseUrl, design.imageUrl) : undefined,
+          imageTitle: design.name || design.title || 'Custom Cake Design',
+        });
+      }
+    }
+
+    // Published custom CMS & local authority guide pages
+    for (const pg of publicSeoSnapshot.customPages) {
+      if (pg.isPublished && !pg.noindex) {
+        entries.push({
+          loc: `${baseUrl}/${pg.slug}`,
+          lastmod: (pg.updatedAt || verifiedLastMod).slice(0, 10),
+          imageLoc: pg.heroImageUrl ? buildAbsoluteUrl(baseUrl, pg.heroImageUrl) : undefined,
+          imageTitle: pg.title,
+        });
+        if (pg.slug === 'about') {
+          entries.push({
+            loc: `${baseUrl}/hi/about`,
+            lastmod: (pg.updatedAt || verifiedLastMod).slice(0, 10),
+          });
+        }
+      }
+    }
+
+    // Deduplicate by loc
+    const seenLocs = new Set<string>();
+    const uniqueEntries = entries.filter((item) => {
+      if (seenLocs.has(item.loc)) return false;
+      seenLocs.add(item.loc);
+      return true;
+    });
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${publicRoutes
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${uniqueEntries
   .map(
-    (route) => `  <url>
-    <loc>${baseUrl}${route}</loc>
-    <changefreq>daily</changefreq>
-    <priority>${route === '/' ? '1.0' : route.startsWith('/categories/') ? '0.85' : '0.8'}</priority>
+    (entry) => `  <url>
+    <loc>${escapeXmlAttr(entry.loc)}</loc>
+    <lastmod>${escapeXmlAttr(entry.lastmod)}</lastmod>${
+      entry.imageLoc
+        ? `\n    <image:image>
+      <image:loc>${escapeXmlAttr(entry.imageLoc)}</image:loc>
+      <image:title>${escapeXmlAttr(entry.imageTitle || "Lovey's Bakery & Pizza Corners")}</image:title>
+    </image:image>`
+        : ''
+    }
   </url>`
   )
   .join('\n')}
 </urlset>`;
+
     res.type('application/xml').send(xml);
+  });
+
+  // Synchronise owner-published Firestore catalogue & SEO metadata to server-side pre-rendering cache
+  app.post('/api/seo/sync-snapshot', (req, res) => {
+    try {
+      const payload = req.body || {};
+      savePublicSeoSnapshot({
+        settings: payload.settings,
+        websiteConfig: payload.websiteConfig,
+        paymentSettings: payload.paymentSettings,
+        categories: payload.categories,
+        products: payload.products,
+        cakeDesigns: payload.cakeDesigns,
+        customPages: payload.customPages,
+        deliveryZones: payload.deliveryZones,
+      });
+      return res.json({
+        synced: true,
+        verifiedProductsCount: publicSeoSnapshot.products.filter(isProductOwnerVerifiedAndPublished).length,
+        totalProductsCount: publicSeoSnapshot.products.length,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'SEO snapshot sync failed.' });
+    }
   });
 
   // ============================================================================
@@ -1163,6 +1587,7 @@ ${publicRoutes
     const nowIso = new Date().toISOString();
     authCtx.account.passwordHash = hashPasswordScrypt(newPassword);
     authCtx.account.requirePasswordChange = false;
+    authCtx.account.mustChangePassword = false;
     authCtx.account.sessionVersion = (authCtx.account.sessionVersion || 1) + 1;
     authCtx.account.passwordUpdatedAt = nowIso;
     authCtx.account.updatedAt = nowIso;
@@ -1202,7 +1627,7 @@ ${publicRoutes
       ipAddress: clientIp,
       userAgent,
       outcome: 'password_changed',
-      reason: 'Password updated; all previous sessions invalidated',
+      reason: 'Password updated; mustChangePassword cleared and all previous sessions invalidated',
       suspicious: false,
     });
     saveAdminAuthStore();
@@ -1213,6 +1638,120 @@ ${publicRoutes
       sessionToken: rawToken,
       account: sanitizeAccountForClient(authCtx.account),
       message: 'Password updated and all previous sessions have been invalidated.',
+    });
+  });
+
+  // Change Registered Email, Username & Display Name (requires current password reauthentication)
+  app.post('/api/admin/auth/change-email', (req, res) => {
+    if (!requireCsrfHeader(req, res)) return;
+    const authCtx = getAuthenticatedSession(req);
+    if (!authCtx) {
+      return res.status(401).json({ error: 'Your admin session has expired. Please sign in again.' });
+    }
+
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newEmail = String(req.body?.newEmail || '').trim().toLowerCase();
+    const newUsername = String(req.body?.newUsername || authCtx.account.username || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_.-]/g, '');
+    const newName = String(req.body?.newName || authCtx.account.name || '').trim();
+    const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'local');
+    const userAgent = String(req.headers['user-agent'] || 'Browser').slice(0, 180);
+
+    if (!verifyPasswordScrypt(currentPassword, authCtx.account.passwordHash)) {
+      recordLoginEvent({
+        emailOrUsername: authCtx.account.email,
+        accountId: authCtx.account.id,
+        roleName: authCtx.account.roleName,
+        ipAddress: clientIp,
+        userAgent,
+        outcome: 'failure',
+        reason: 'Failed current password reauthentication during registered email change',
+        suspicious: true,
+      });
+      saveAdminAuthStore();
+      return res.status(401).json({
+        error: 'Current password is incorrect. Reauthentication is required to change your registered email.',
+      });
+    }
+
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid new email address.' });
+    }
+
+    const conflicting = adminAuthStore.accounts.find(
+      (a) =>
+        a.id !== authCtx.account.id &&
+        (a.email.toLowerCase() === newEmail ||
+          (newUsername && a.username && a.username.toLowerCase() === newUsername))
+    );
+    if (conflicting) {
+      return res.status(400).json({
+        error: `Another administrator or staff account already uses "${newEmail}" or username "${newUsername}".`,
+      });
+    }
+
+    const previousEmail = authCtx.account.email;
+    const nowIso = new Date().toISOString();
+
+    authCtx.account.email = newEmail;
+    if (newUsername) {
+      authCtx.account.username = newUsername;
+    }
+    if (newName) {
+      authCtx.account.name = newName;
+    }
+    authCtx.account.sessionVersion = (authCtx.account.sessionVersion || 1) + 1;
+    authCtx.account.updatedAt = nowIso;
+
+    // Invalidate all previous sessions for this account
+    adminAuthStore.sessions = adminAuthStore.sessions.filter(
+      (s) => s.accountId !== authCtx.account.id
+    );
+
+    // Issue a fresh session token for the current device
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const maxAgeSeconds = authCtx.session.rememberDevice ? 14 * 24 * 3600 : 12 * 3600;
+    const freshSession: ActiveAdminSession = {
+      sessionId: `sess-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+      tokenHash: hashTokenSha256(rawToken),
+      accountId: authCtx.account.id,
+      email: authCtx.account.email,
+      username: authCtx.account.username,
+      name: authCtx.account.name,
+      roleId: authCtx.account.roleId,
+      roleName: authCtx.account.roleName,
+      permissionsSummary: authCtx.account.permissionsSummary,
+      sessionVersion: authCtx.account.sessionVersion,
+      ipAddress: clientIp,
+      userAgent,
+      rememberDevice: authCtx.session.rememberDevice,
+      createdAt: nowIso,
+      lastActiveAt: nowIso,
+      expiresAt: Date.now() + maxAgeSeconds * 1000,
+    };
+
+    adminAuthStore.sessions.unshift(freshSession);
+    recordLoginEvent({
+      emailOrUsername: authCtx.account.email,
+      accountId: authCtx.account.id,
+      roleName: authCtx.account.roleName,
+      ipAddress: clientIp,
+      userAgent,
+      outcome: 'email_changed',
+      reason: `Registered email updated from ${previousEmail} to ${newEmail} after password reauthentication`,
+      suspicious: false,
+    });
+    saveAdminAuthStore();
+    setAdminSessionCookie(res, rawToken, maxAgeSeconds);
+
+    return res.json({
+      updated: true,
+      previousEmail,
+      sessionToken: rawToken,
+      account: sanitizeAccountForClient(authCtx.account),
+      message: `Registered email updated from ${previousEmail} to ${newEmail}. All previous sessions on other devices have been invalidated.`,
     });
   });
 
@@ -1596,7 +2135,12 @@ ${publicRoutes
       if (!target) {
         return res.status(404).json({ error: 'Staff account not found.' });
       }
-      if (target.email.toLowerCase() === 'prabhve5@gmail.com' && status !== 'active') {
+      if (
+        (target.roleId === 'role-owner' ||
+          target.email.toLowerCase() === 'prabhve5@gmail.com' ||
+          target.email.toLowerCase() === 'owner@loveys-demo.test') &&
+        status !== 'active'
+      ) {
         return res.status(400).json({ error: 'The Principal Owner account cannot be deactivated.' });
       }
       target.status = status;
@@ -1832,21 +2376,75 @@ ${publicRoutes
   });
 
   // ============================================================================
-  // 4. STATIC PUBLIC ASSETS & VITE DEV MIDDLEWARE
+  // 4. STATIC PUBLIC ASSETS & ROUTE-AWARE SSR / PRE-RENDERED HTML DELIVERY
   // ============================================================================
   app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
+
+  const publicOrigin = normalizePublicOrigin(
+    process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_URL || DEFAULT_PUBLIC_ORIGIN
+  );
+
+  // Permanent 301 Redirects for legacy category aliases (Phase 7)
+  app.get('/categories/pastries', (_req, res) => {
+    res.redirect(301, '/categories/pastries-desserts');
+  });
+  app.get('/categories/pizzas', (_req, res) => {
+    res.redirect(301, '/categories/pizza');
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: 'custom',
     });
     app.use(vite.middlewares);
+
+    app.use('*', async (req, res, next) => {
+      try {
+        const reqPath = req.originalUrl.split('?')[0] || '/';
+        if (
+          reqPath.startsWith('/api/') ||
+          reqPath.startsWith('/src/') ||
+          reqPath.startsWith('/@') ||
+          reqPath.startsWith('/node_modules/') ||
+          /\.[a-zA-Z0-9]+$/.test(reqPath)
+        ) {
+          return next();
+        }
+        const rawTemplate = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
+        const transformed = await vite.transformIndexHtml(req.originalUrl, rawTemplate);
+        const { html, status, robots } = injectRouteSeoIntoHtmlTemplate(
+          transformed,
+          reqPath,
+          publicOrigin
+        );
+        if (robots.includes('noindex')) {
+          res.setHeader('X-Robots-Tag', robots);
+        }
+        res.status(status).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(html);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.use(express.static(distPath, { index: false }));
+    app.get('*', (req, res) => {
+      try {
+        const reqPath = req.path || '/';
+        const rawTemplate = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+        const { html, status, robots } = injectRouteSeoIntoHtmlTemplate(
+          rawTemplate,
+          reqPath,
+          publicOrigin
+        );
+        if (robots.includes('noindex')) {
+          res.setHeader('X-Robots-Tag', robots);
+        }
+        res.status(status).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(html);
+      } catch (_err) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
     });
   }
 

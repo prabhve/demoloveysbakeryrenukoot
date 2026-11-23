@@ -25,7 +25,10 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isSignedIn() && request.auth.token.email == "prabhve5@gmail.com";
+      return isSignedIn() && (
+        request.auth.token.email == "prabhve5@gmail.com" ||
+        request.auth.token.email == "owner@loveys-demo.test"
+      );
     }
 
     function isAdmin() {
@@ -465,7 +468,7 @@ service cloud.firestore {
         ]) &&
         data.keys().hasOnly([
           'id', 'email', 'username', 'name', 'phone', 'roleId', 'roleName', 'permissionsSummary', 'status',
-          'requirePasswordChange', 'sessionVersion', 'sessionTimeoutMinutes', 'lastLoginAt',
+          'requirePasswordChange', 'mustChangePassword', 'sessionVersion', 'sessionTimeoutMinutes', 'lastLoginAt',
           'passwordUpdatedAt', 'invitedByEmail', 'createdAt', 'updatedAt'
         ]) &&
         data.id is string && data.id.size() >= 2 && data.id.size() <= 80 &&

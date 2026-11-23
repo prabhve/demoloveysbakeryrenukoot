@@ -1,0 +1,1256 @@
+# PROJECT: LOVEY'S BAKERY & PIZZA CORNERS
+# ENTERPRISE SEO + AEO + GEO + LLMO + LOCAL SEARCH DOMINATION UPGRADE
+
+LIVE WEBSITE:
+https://demoloveysbakeryrenukoot.vercel.app/
+
+PROJECT LOCATION:
+Renukoot, Sonbhadra, Uttar Pradesh, India.
+
+BUSINESS:
+Lovey's Bakery & Pizza Corners
+लवी'स बेकरी & पिज्जा कॉर्नर्स
+
+Act as a principal technical SEO architect, local search specialist, AEO strategist, generative search optimisation specialist, structured data engineer, React performance engineer and senior full-stack developer.
+
+Your mission is to transform the existing Lovey's website into a technically excellent, content-rich, locally relevant and AI-search-accessible business website.
+
+The main objective is to maximise the website's legitimate organic search visibility for relevant bakery, cake, pizza, custom cake and takeaway searches in Renukoot and the wider Sonbhadra region.
+
+This is a complete implementation task, not a theoretical SEO report.
+
+IMPORTANT:
+The complete project source code is already available in the workspace.
+
+First inspect the actual existing codebase.
+
+The current architecture is:
+- React 19.
+- Vite.
+- TypeScript.
+- Tailwind CSS.
+- Express.js custom server.
+- Firebase Authentication.
+- Cloud Firestore.
+- Firebase Storage.
+- Three.js interactive 3D homepage experience.
+
+Do not mistakenly assume this is a Next.js or Supabase application.
+
+Preserve the existing Firebase backend and all operational functionality.
+
+Do not introduce unnecessary paid SEO APIs or AI APIs.
+
+Do not add AI features to the live website.
+
+Do not re-create the website from scratch.
+
+==================================================
+PHASE 1 — COMPLETE SEO AUDIT
+==================================================
+
+Inspect every relevant source file.
+
+Prioritise:
+
+- index.html
+- src/App.tsx
+- src/main.tsx
+- src/data/initialCatalogue.ts
+- src/components/Scroll3DShowcase.tsx
+- src/components/StoreMapSection.tsx
+- server.ts
+- vite.config.ts
+- public/assets/
+- firebase configuration.
+- Existing sitemap and robots routes.
+- Website CMS and business settings.
+- Product and category data models.
+
+Identify existing SEO problems and provide an internal audit report.
+
+Check:
+
+1. Technical crawlability.
+2. Indexability.
+3. Rendering.
+4. Route handling.
+5. Titles.
+6. Meta descriptions.
+7. Canonical URLs.
+8. Open Graph.
+9. Twitter metadata.
+10. Structured data.
+11. Internal links.
+12. Sitemap.
+13. Robots.txt.
+14. Image SEO.
+15. Mobile performance.
+16. Page speed.
+17. Accessibility.
+18. Duplicate content.
+19. Soft 404s.
+20. Local business entity consistency.
+
+Inspect actual source code rather than assuming a feature exists because it is mentioned in documentation.
+
+==================================================
+PHASE 2 — MAJOR TECHNICAL SEO ARCHITECTURE UPGRADE
+==================================================
+
+THIS IS THE HIGHEST PRIORITY.
+
+The current website is primarily a client-rendered React SPA.
+
+The Express production fallback currently serves the same dist/index.html shell for application routes.
+
+React changes document titles after client-side navigation, but route-specific metadata and complete initial HTML content are not consistently generated for public pages.
+
+This must be improved.
+
+Implement a reliable SSR, static pre-rendering or equivalent route-aware rendering solution for important public pages.
+
+Required:
+
+- Homepage.
+- Menu page.
+- Cake catalogue.
+- Custom cake page.
+- Individual published product pages.
+- Published category pages.
+- About.
+- Gallery.
+- Contact.
+- Custom public CMS pages.
+- Public delivery and business policy pages where appropriate.
+
+The initial HTTP HTML must contain meaningful route-specific content, headings, metadata, canonical URLs and appropriate structured data.
+
+Do not rely only on client-side JavaScript to set page titles and metadata.
+
+Evaluate the safest approach compatible with the existing codebase:
+
+OPTION A:
+Implement a proper server-side rendering or static rendering architecture compatible with the current React and Express application.
+
+OPTION B:
+Implement a reliable pre-rendering system that produces route-specific HTML using the existing published Firebase business data and updates generated content when the owner publishes changes.
+
+OPTION C:
+If a more substantial framework change is genuinely necessary to achieve reliable public-page rendering, first assess the migration impact and implement it only if the complete existing BMS, Firebase integration, authentication, ordering system and 3D components can be preserved and tested.
+
+Do not blindly migrate the entire project.
+
+Do not perform bot-only cloaking.
+
+Bots and human visitors must receive the same meaningful page content.
+
+Public content must remain synchronised with the existing Firestore source of truth.
+
+If a required secure server-side Firebase read capability is missing, identify the exact requirement and use a properly protected server-side credential or safe publication mechanism. Never expose privileged Firebase credentials in browser code.
+
+Google and other search engines must be able to discover meaningful public content without depending entirely on JavaScript execution.
+
+==================================================
+PHASE 3 — PROFESSIONAL ON-PAGE SEO
+==================================================
+
+Create a central reusable SEO management utility.
+
+For every public indexable route, dynamically provide:
+
+- Unique title.
+- Unique meta description.
+- Self-referencing canonical URL.
+- Open Graph title.
+- Open Graph description.
+- Absolute Open Graph image URL.
+- Twitter title.
+- Twitter description.
+- Twitter image.
+- Correct language metadata.
+- Appropriate robots directives.
+
+Use the actual public website domain from one central deployment configuration.
+
+Do not hardcode multiple conflicting domains throughout the application.
+
+The current live deployment domain is:
+https://demoloveysbakeryrenukoot.vercel.app/
+
+Use this as the deployment origin unless an authorised production custom domain is explicitly configured.
+
+Do not invent a new domain.
+
+Do not canonicalise every page to the homepage.
+
+Every important product, category and public information page must have its own correct canonical URL.
+
+Create a consistent title and description system.
+
+Title examples, subject to actual business information:
+
+Homepage:
+Lovey's Bakery & Pizza Corners | Bakery & Custom Cakes in Renukoot
+
+Custom Cake Page:
+Custom Birthday & Celebration Cakes in Renukoot | Lovey's
+
+Cake Catalogue:
+Birthday, Chocolate & Designer Cakes in Renukoot | Lovey's
+
+Menu:
+Bakery, Pizza & Food Menu in Renukoot | Lovey's
+
+Contact:
+Lovey's Bakery Location & Contact | Renukoot, Sonbhadra
+
+Product titles must dynamically include the actual product name and brand.
+
+Avoid repetitive titles, excessive keyword use and misleading promises.
+
+Keep all titles and descriptions natural and useful.
+
+==================================================
+PHASE 4 — LOCAL SEO FOR RENUKOOT AND SONBHADRA
+==================================================
+
+Develop a strong local business identity.
+
+Priority search geography:
+
+PRIMARY:
+Renukoot, Sonbhadra, Uttar Pradesh.
+
+SECONDARY:
+Relevant, genuinely serviceable areas around Renukoot and Sonbhadra.
+
+Do not target locations outside the actual business's service coverage.
+
+Build topical and geographic relevance around:
+
+- Bakery in Renukoot.
+- Cake shop in Renukoot.
+- Custom cakes in Renukoot.
+- Birthday cakes in Renukoot.
+- Chocolate cakes in Renukoot.
+- Celebration cake orders in Renukoot.
+- Pizza in Renukoot.
+- Bakery snacks in Renukoot.
+- Takeaway food in Renukoot.
+- Home delivery in serviceable Renukoot areas.
+
+Use related search phrases naturally in page titles, H1s, headings, paragraphs, internal links and product content.
+
+Do not use keyword stuffing.
+
+Do not generate repetitive landing pages such as:
+- Best bakery in every nearby village.
+- Number one cake shop in every locality.
+- Artificially duplicated city pages.
+
+Only create geographic landing pages if there is genuine, unique local content and an actual business service for that location.
+
+## LOCAL ENTITY CONSISTENCY
+
+Maintain the same official business identity across the website.
+
+Business:
+Lovey's Bakery & Pizza Corners
+
+Hindi:
+लवी'स बेकरी & पिज्जा कॉर्नर्स
+
+Address:
+In front of Tiwari Hotel, near Punjab National Bank, Renukoot, Sonbhadra, Uttar Pradesh 231217, India.
+
+Phone:
++91 80905 29971
+
+Website:
+Use the configured public domain.
+
+Official Facebook:
+https://www.facebook.com/loveysbakeryandpizzacorner/
+
+Google Maps:
+https://www.google.com/maps/place/Lovey's+Bakery+%26+Pizza+Corners/
+
+Ensure consistent:
+- Name.
+- Address.
+- Phone.
+- Website URL.
+- Map destination.
+- Business category.
+- Opening hours.
+
+IMPORTANT LOCATION VERIFICATION:
+
+The current repository has these coordinates:
+
+24.2054, 83.0355
+
+The previously supplied Google Maps place URL contains:
+
+24.221672, 83.0362183
+
+Do not automatically replace one with another.
+
+Verify the exact business pin against the owner's authorised Google Business Profile and actual map destination.
+
+Update StoreMapSection.tsx and structured data only after the pin is confirmed.
+
+Also review hardcoded landmark distances and travel times. Remove unsupported numerical claims.
+
+Opening hours currently appear as 10 AM–10 PM in code, but previously supplied public business information differs.
+
+Make opening hours owner-configurable and use verified weekly and special hours in schema.
+
+Do not publish unconfirmed hours.
+
+==================================================
+PHASE 5 — GOOGLE BUSINESS PROFILE OPTIMISATION
+==================================================
+
+Prepare the website for alignment with the official Google Business Profile.
+
+Create a separate owner setup checklist in the project documentation.
+
+Cover:
+
+- Business Profile verification.
+- Correct primary business category.
+- Relevant additional categories, if applicable.
+- Exact business name.
+- Correct address.
+- Correct phone number.
+- Correct website URL.
+- Business opening hours.
+- Holiday hours.
+- Actual service attributes.
+- Menu link.
+- Ordering link.
+- Product and cake photographs.
+- Authentic bakery and storefront photographs.
+- Customer review response strategy.
+
+Ensure that the website and Google Business Profile do not contradict each other.
+
+Do not add fictional opening times, delivery zones, ratings or business attributes.
+
+Create a direct customer review link configuration in the admin settings if the verified Business Profile review URL is supplied by the owner.
+
+Do not fabricate customer reviews or incentivise positive ratings.
+
+Do not promise a specific local ranking position.
+
+==================================================
+PHASE 6 — STRUCTURED DATA / SCHEMA.ORG
+==================================================
+
+Implement a comprehensive but accurate JSON-LD architecture.
+
+Use reusable schema generation utilities.
+
+A. HOMEPAGE
+
+Implement a structured entity graph containing appropriate:
+
+- Bakery / LocalBusiness.
+- Organization.
+- WebSite.
+- WebPage.
+
+Use a stable business @id.
+
+Include accurate:
+
+- Business name.
+- Alternate Hindi name.
+- Description.
+- Telephone.
+- Postal address.
+- Country.
+- Verified coordinates.
+- Business URL.
+- SameAs links.
+- HasMap.
+- OpeningHoursSpecification.
+- PriceRange, only if justified.
+- Menu link, if available.
+- Genuine business images.
+
+B. PRODUCT DETAIL PAGES
+
+For real published purchasable products, implement Product and Offer schema.
+
+Include:
+
+- Actual product name.
+- Actual description.
+- Actual product image.
+- Product URL.
+- SKU or identifier where available.
+- Brand.
+- Price.
+- Currency INR.
+- Availability.
+- Valid offer URL.
+- Price validity if applicable.
+
+The schema must match the visible product page exactly.
+
+If products have different weight/size variants and prices, implement ProductGroup / hasVariant where appropriate, rather than incorrectly declaring one generic price for every variant.
+
+Do not invent shipping or return details.
+
+Do not generate Product schema for products without verified purchase data.
+
+C. CATEGORY PAGES
+
+Use:
+- CollectionPage.
+- ItemList where appropriate.
+- BreadcrumbList.
+
+D. PRODUCT AND INFORMATION PAGE BREADCRUMBS
+
+Create valid:
+- Home.
+- Category.
+- Product.
+
+E. FAQ CONTENT
+
+Use visible, genuinely useful question-and-answer content.
+
+Do not add fake FAQ answers simply to increase schema markup.
+
+Do not rely on FAQPage schema as a special AI ranking trick.
+
+F. REVIEW POLICY
+
+Never fabricate AggregateRating.
+
+Do not copy a Google or Justdial business rating into first-party review markup.
+
+Do not create false customer testimonials.
+
+Google's self-serving review restrictions for LocalBusiness must be respected.
+
+Validate structured data with Google's Rich Results Test and Schema Markup Validator.
+
+Only publish markup matching visible, verified information.
+
+==================================================
+PHASE 7 — PRODUCT AND E-COMMERCE SEO
+==================================================
+
+Build an SEO-friendly product discovery architecture.
+
+Every genuinely published product should have:
+
+- Stable descriptive URL slug.
+- Unique title.
+- Unique description.
+- Main image.
+- Descriptive image alt text.
+- Correct category.
+- Actual pricing.
+- Actual availability.
+- Product details.
+- Relevant internal links.
+- Breadcrumbs.
+- Product structured data.
+
+Maintain proper URL examples:
+
+/menu
+
+/cakes
+
+/custom-cake
+
+/menu/[product-slug]
+
+/cakes/[cake-design-slug]
+
+/categories/[category-slug]
+
+Do not unnecessarily change existing live URLs.
+
+If a URL must change, implement permanent 301 redirects from the previous URL to the correct new URL.
+
+Ensure published product pages are discoverable through crawlable HTML anchor links.
+
+Do not rely exclusively on clickable JavaScript cards or button events.
+
+Use actual meaningful anchor elements for navigation.
+
+Include related products and relevant category links.
+
+Add genuine, useful product information:
+
+- Available sizes.
+- Weight.
+- Flavours.
+- Customisation.
+- Preparation lead time.
+- Actual price.
+- Availability.
+- Order instructions.
+
+Avoid thin or duplicate product descriptions.
+
+==================================================
+PHASE 8 — VERY IMPORTANT: INITIAL CATALOGUE VERIFICATION
+==================================================
+
+Audit src/data/initialCatalogue.ts and the automatic Firestore seeding mechanism.
+
+The existing starter catalogue includes ten products and four cake designs with detailed sample prices, flavours, ingredients and production claims.
+
+These are not proven to be the real current business menu.
+
+Do not treat seeded sample catalogue data as verified business facts.
+
+Implement a safe review workflow.
+
+For starter records that are not owner-verified:
+
+- Preserve the records.
+- Mark them as requiring owner review.
+- Do not publish them automatically.
+- Do not include them in the public sitemap.
+- Do not generate Product structured data.
+- Do not index their product URLs.
+- Do not claim their ingredient, eggless, flavour or production details as fact.
+
+Add an owner-managed verification/publishing status.
+
+Possible states:
+
+- Draft.
+- Needs Owner Verification.
+- Approved.
+- Published.
+- Archived.
+
+Do not overwrite existing owner-approved live Firestore records.
+
+Identify sample-seed records using reliable IDs or a provenance field rather than guessing from product names alone.
+
+The owner must be able to approve products individually.
+
+Future products created through the admin must also pass the appropriate publication process.
+
+==================================================
+PHASE 9 — IMAGE SEO AND VISUAL MEDIA OPTIMISATION
+==================================================
+
+Inspect every asset in:
+
+public/assets/
+
+Current asset names include:
+
+- loveys-hero-spread.jpg
+- loveys-tier-celebration-cake.jpg
+- loveys-chocolate-truffle-gateau.jpg
+- loveys-stone-baked-pizza.jpg
+- loveys-pastries-cookies.jpg
+- loveys-bakery-table.jpg
+
+The asset map currently uses the name GENERATED_IMAGES.
+
+Verify image provenance with the owner.
+
+Do not assume every existing image is an authentic business photograph.
+
+Create a photo verification workflow.
+
+For genuine owner-authorised images:
+
+- Preserve original source files.
+- Generate optimised derivatives.
+- Support AVIF/WebP.
+- Generate multiple responsive image sizes.
+- Add descriptive filenames.
+- Add meaningful alt text.
+- Include image dimensions.
+- Reduce unnecessary file weight.
+- Prevent cumulative layout shifts.
+- Add image sitemap entries where appropriate.
+- Use correct image metadata.
+
+Resolve the duplicate hero and store image.
+
+Avoid reusing one product image across unrelated product listings.
+
+For each actual product, prefer its own genuine photograph.
+
+HOME HERO:
+
+- Prioritise the hero image.
+- Provide correct fetch priority.
+- Avoid lazy loading the main LCP image.
+- Use suitable desktop and mobile image variants.
+
+BELOW THE FOLD:
+
+- Lazy load images.
+- Defer unnecessary videos.
+- Use appropriate poster frames.
+- Avoid downloading every gallery image initially.
+
+3D SECTION:
+
+Preserve the existing 3D photographic storytelling design.
+
+Do not convert it into an unrelated slideshow.
+
+Lazy-load heavy 3D components where appropriate.
+
+Ensure image SEO still works when JavaScript animation is unavailable.
+
+Respect reduced motion.
+
+==================================================
+PHASE 10 — AEO: ANSWER ENGINE OPTIMISATION
+==================================================
+
+Make the website capable of clearly answering customer questions.
+
+Create useful content sections with direct questions and accurate answers.
+
+Suggested question themes:
+
+1. Where is Lovey's Bakery & Pizza Corners located in Renukoot?
+2. How can I order a custom birthday cake?
+3. What cake sizes are available?
+4. Can I customise cake flavours and designs?
+5. How much advance booking is required?
+6. Does Lovey's provide home delivery?
+7. Which areas are eligible for delivery?
+8. Can customers order takeaway parcels?
+9. Is dine-in available?
+10. How can I pay an advance using UPI?
+11. How can I track an order?
+12. How can I contact the bakery?
+13. What are the opening hours?
+14. How can I request a custom cake quotation?
+
+Answers must be based on actual business configuration and owner-approved information.
+
+Use:
+- Clear question headings.
+- Concise direct answers.
+- Supporting details.
+- Descriptive links.
+- Relevant navigation.
+
+Keep answers visible to users.
+
+Place important answers near the relevant page content.
+
+Do not create pages containing only repetitive AI-style FAQs.
+
+Create useful information that solves actual customer problems.
+
+==================================================
+PHASE 11 — GEO AND LLMO
+==================================================
+
+Optimise the public website for discoverability by generative search systems.
+
+Make the business entity easy to understand.
+
+Ensure that important information exists in ordinary crawlable HTML:
+
+- Business identity.
+- Location.
+- Contact.
+- Actual products.
+- Published menu.
+- Custom cake services.
+- Ordering methods.
+- Delivery coverage.
+- Pickup arrangements.
+- Business timings.
+- Payment and order confirmation details.
+
+Use unambiguous section headings and factual explanations.
+
+Use consistent brand and geographic entity naming.
+
+Avoid:
+- Repetitive keyword stuffing.
+- Hidden AI-only content.
+- Fabricated authority statements.
+- Fake third-party citations.
+- Fake mentions and references.
+- Artificial review generation.
+- Mass-generated thin location pages.
+- Unsupported AI ranking guarantees.
+
+Make the following public resources available:
+
+robots.txt
+sitemap.xml
+
+Do not create an unnecessary AI text file solely to claim LLM optimisation.
+
+GOOGLE SEARCH CRAWLING:
+
+Allow Googlebot to crawl all useful public pages and resources.
+
+BING / COPILOT:
+
+Allow Bingbot and provide correct sitemap discovery.
+
+CHATGPT SEARCH:
+
+Explicitly allow OAI-SearchBot.
+
+Do not accidentally block its requests through robots.txt or hosting security.
+
+Keep GPTBot training preferences separate from OAI-SearchBot search access.
+
+CLAUDE SEARCH:
+
+Allow Claude-SearchBot where permitted.
+
+Keep Claude-SearchBot separate from ClaudeBot training preferences.
+
+Do not automatically change training crawler preferences without owner authorisation.
+
+Ensure CDN, firewall or hosting configuration does not block legitimate search crawlers.
+
+==================================================
+PHASE 12 — ROBOTS.TXT AND INDEX MANAGEMENT
+==================================================
+
+Review and rewrite the existing robots.txt route in server.ts.
+
+Allow indexing and crawling of useful public pages and media.
+
+Protect administrative and technical endpoints.
+
+Admin areas must not appear in search results.
+
+Implement noindex directives for:
+
+- /admin/
+- /cart
+- /checkout
+- /track-order
+- /order/*
+- /payment/*
+- Sensitive customer-specific pages.
+- Other private or transactional routes.
+
+Apply appropriate X-Robots-Tag response headers and page-level robots metadata.
+
+For private order pages:
+
+- Never expose personal data without proper customer authorisation.
+- Require appropriate access control.
+- Use noindex and no-store.
+- Never include order IDs or private evidence in public sitemaps.
+
+Important:
+robots.txt controls crawling, not indexing. Do not rely on robots.txt alone to prevent unwanted indexing.
+
+Allow crawlers to access pages when they need to read their noindex directive.
+
+Keep protected admin/API endpoints properly secured through authentication and authorisation.
+
+==================================================
+PHASE 13 — DYNAMIC XML SITEMAP
+==================================================
+
+Upgrade the current hardcoded sitemap.
+
+Generate sitemap entries from actual published and approved public data.
+
+Include:
+
+- Homepage.
+- Main public category pages.
+- Published product detail pages.
+- Published cake design pages where useful.
+- About.
+- Gallery.
+- Contact.
+- Public delivery and policy pages.
+- Published custom CMS pages.
+
+Exclude:
+
+- Admin.
+- API endpoints.
+- Cart.
+- Checkout.
+- Tracking pages.
+- Order pages.
+- Payment pages.
+- Unpublished products.
+- Draft products.
+- Archived pages.
+- Duplicate canonical URLs.
+- Private customer content.
+
+Include:
+
+- Absolute canonical URLs.
+- Accurate lastmod when the actual page changes.
+- Image references for relevant public product and gallery pages, where appropriate.
+
+Do not generate fake lastmod dates.
+
+Do not claim every page changes daily.
+
+Ensure the sitemap returns valid XML with appropriate HTTP status and content type.
+
+Ensure every sitemap URL returns a successful response and is actually indexable.
+
+==================================================
+PHASE 14 — BILINGUAL SEO
+==================================================
+
+The existing site has an English/Hindi UI toggle.
+
+Review whether both language versions can be independently indexed.
+
+If implementing fully translated Hindi public pages:
+
+Create stable Hindi routes, such as:
+
+/hi/
+/hi/menu
+/hi/cakes
+/hi/custom-cake
+/hi/contact
+
+Use:
+
+- Correct lang attributes.
+- Appropriate Hindi titles.
+- Native Hindi descriptions.
+- Translated visible content.
+- Correct canonical URLs.
+- Reciprocal hreflang annotations.
+- en-IN and hi-IN language targeting.
+- x-default where appropriate.
+
+Do not create hreflang links unless the corresponding real translated page exists.
+
+Do not index duplicated English and Hindi pages without appropriate language distinction.
+
+Preserve the interactive language toggle for users.
+
+==================================================
+PHASE 15 — LOCAL CONTENT AND TOPICAL AUTHORITY
+==================================================
+
+Develop original, genuinely useful local content.
+
+Suggested content themes:
+
+- Custom birthday cake ordering in Renukoot.
+- How to select a cake weight for a celebration.
+- How to submit a custom cake design reference.
+- Lovey's cake customisation process.
+- Bakery menu and available product categories.
+- How to place a takeaway order.
+- Home delivery availability in confirmed service areas.
+- Store location and directions near Tiwari Hotel and Punjab National Bank.
+- How UPI advance payment and order confirmation work.
+
+Every article or guide must:
+
+- Answer a real customer question.
+- Contain accurate business-specific information.
+- Have a meaningful title.
+- Have a unique description.
+- Link to relevant product or ordering pages.
+- Use genuine business photos.
+- Be approved by the owner.
+
+Do not produce dozens of thin AI-generated articles.
+
+Prefer a smaller number of genuinely useful pages.
+
+Add author/business attribution where appropriate.
+
+Show an accurate updated date when the content is genuinely updated.
+
+==================================================
+PHASE 16 — INTERNAL LINKING ARCHITECTURE
+==================================================
+
+Create a strong internal linking structure.
+
+Homepage links to:
+
+- Menu.
+- Cakes.
+- Custom Cake Studio.
+- Categories.
+- Bestselling products.
+- Gallery.
+- About.
+- Contact.
+
+Category pages link to relevant products.
+
+Product pages link to:
+
+- Parent category.
+- Related products.
+- Custom cake service where relevant.
+- Ordering instructions.
+
+Content pages link naturally to relevant products and services.
+
+Use meaningful anchor text.
+
+Avoid:
+- Broken links.
+- Dead-end pages.
+- Excessive repeated exact-match anchors.
+- Navigation through clickable divs only.
+
+Use proper HTML anchors for crawlable links.
+
+Add visible breadcrumbs where useful.
+
+==================================================
+PHASE 17 — CORE WEB VITALS AND TECHNICAL PERFORMANCE
+==================================================
+
+Optimise the website for real-device performance.
+
+Measure and improve:
+
+- LCP.
+- INP.
+- CLS.
+- Initial JavaScript size.
+- Image loading.
+- Font loading.
+- Render delay.
+- Three.js performance.
+- Long tasks.
+- Network requests.
+- Mobile rendering.
+
+Targets should align with Google's good Core Web Vitals thresholds:
+
+- LCP: 2.5 seconds or less.
+- INP: 200 milliseconds or less.
+- CLS: 0.1 or less.
+
+Do not fake performance scores.
+
+Optimise:
+- Hero image.
+- Product grid.
+- Gallery.
+- Custom cake images.
+- 3D showcase.
+- Google Font loading.
+- JavaScript bundling.
+- Lazy loading.
+- Responsive layouts.
+
+Keep the 3D experience intact where possible.
+
+Offer a performant fallback for low-powered devices.
+
+==================================================
+PHASE 18 — ACCESSIBILITY AND SEMANTIC HTML
+==================================================
+
+Review the complete public website.
+
+Implement:
+
+- Meaningful page titles.
+- Proper main landmarks.
+- Header and footer landmarks.
+- Descriptive heading hierarchy.
+- One clear primary page heading.
+- Image alt text.
+- Accessible buttons.
+- Keyboard-friendly navigation.
+- Accessible menu controls.
+- Proper form labels.
+- Visible focus indicators.
+- Sufficient colour contrast.
+- Reduced motion support.
+
+Ensure important product information is available as text, not only as decorative imagery or WebGL content.
+
+==================================================
+PHASE 19 — GOOGLE SEARCH CONSOLE AND BING SETUP
+==================================================
+
+Prepare documentation for the owner.
+
+GOOGLE:
+
+- Verify ownership in Google Search Console.
+- Submit sitemap.xml.
+- Inspect the homepage.
+- Inspect category pages.
+- Inspect important product pages.
+- Review Page Indexing.
+- Review Crawl Statistics.
+- Review Core Web Vitals.
+- Monitor local organic queries.
+- Inspect rendered HTML.
+
+BING:
+
+- Set up Bing Webmaster Tools.
+- Import verified sitemap information where possible.
+- Submit sitemap.
+- Review crawl and index issues.
+- Use IndexNow where appropriate for published content updates.
+
+BUSINESS PROFILE:
+
+- Verify the Google Business Profile.
+- Check business information.
+- Update website URL.
+- Add genuine photos.
+- Maintain accurate hours.
+- Link to the menu.
+- Respond to genuine customer reviews.
+
+Do not claim a property is verified until the owner completes verification.
+
+Do not invent verification tokens.
+
+Do not request unnecessary API keys.
+
+==================================================
+PHASE 20 — SEO MANAGEMENT THROUGH THE EXISTING ADMIN
+==================================================
+
+Extend the existing Business Management System.
+
+The owner should be able to manage SEO without contacting the developer.
+
+For homepage, pages, categories, products and cake designs, provide:
+
+- SEO title.
+- Meta description.
+- URL slug.
+- Canonical override where authorised.
+- Index/noindex setting.
+- Social sharing image.
+- Image alt text.
+- Structured data fields derived from actual content.
+- Published/draft status.
+
+Add SEO preview:
+
+- Google search snippet preview.
+- Mobile snippet preview where feasible.
+- Social sharing preview.
+
+Show useful warnings:
+
+- Missing title.
+- Duplicate title.
+- Missing description.
+- Duplicate description.
+- Missing primary heading.
+- Missing image alt text.
+- Invalid canonical.
+- Product missing verified price.
+- Product missing image.
+- Unpublished product appearing in sitemap.
+- Noindex page included in sitemap.
+
+Validate user-entered HTML and metadata.
+
+Never allow executable scripts or arbitrary schema injection through ordinary CMS fields.
+
+Automatically generate safe metadata defaults from approved page content.
+
+Allow the owner to override them manually.
+
+==================================================
+PHASE 21 — ANALYTICS AND RANKING MONITORING
+==================================================
+
+Prepare an analytics and reporting structure.
+
+Monitor:
+
+- Organic sessions.
+- Search impressions.
+- Clicks.
+- Click-through rate.
+- Average search position.
+- Queries bringing visitors to the site.
+- Indexed pages.
+- Search coverage problems.
+- Product page performance.
+- Local landing page engagement.
+- Calls from the website.
+- Directions clicks.
+- Menu clicks.
+- WhatsApp enquiries.
+- Add-to-cart events.
+- Successful orders.
+
+Use Google Search Console and available analytics tools.
+
+Do not purchase unnecessary ranking APIs.
+
+Keep privacy and consent requirements in mind.
+
+Do not show fake SEO scores or invented keyword positions.
+
+==================================================
+PHASE 22 — FINAL QUALITY ASSURANCE
+==================================================
+
+Test the implementation in real browser conditions.
+
+A. TEST HTML RESPONSE:
+
+Request every important public route without executing JavaScript.
+
+Confirm:
+- Unique title.
+- Unique description.
+- Correct canonical.
+- Visible main content.
+- Correct robots directives.
+- Correct JSON-LD.
+
+B. TEST ROUTES:
+
+- /
+- /menu
+- /cakes
+- /custom-cake
+- /gallery
+- /about
+- /contact
+- /categories/[slug]
+- /menu/[product-slug]
+- /cakes/[design-slug]
+
+C. TEST PRIVATE ROUTES:
+
+- /admin
+- /cart
+- /checkout
+- /track-order
+- /order/*
+- /payment/*
+
+Ensure none of the private or transactional information is indexed.
+
+D. TEST INVALID URLS:
+
+Unknown categories, invalid product slugs and missing pages must return a genuine 404.
+
+Do not serve the homepage with HTTP 200 for an invalid product route.
+
+Avoid soft-404 pages.
+
+E. VALIDATE:
+
+- Sitemap XML.
+- Robots.txt.
+- Canonical URLs.
+- Structured data.
+- Open Graph.
+- Image assets.
+- Internal links.
+- Hindi language metadata.
+- Responsive layouts.
+- Core Web Vitals.
+- Product publication status.
+
+Run:
+- TypeScript checks.
+- ESLint.
+- Production build.
+- Route-level tests.
+- Browser rendering tests.
+- Structured data validation.
+- HTML response tests.
+- Security checks.
+
+==================================================
+PHASE 23 — FINAL DOCUMENTATION
+==================================================
+
+Create:
+
+SEO_AUDIT_REPORT.md
+
+SEO_IMPLEMENTATION.md
+
+LOCAL_SEO_CHECKLIST.md
+
+AEO_GEO_LLMO_GUIDE.md
+
+SEARCH_CONSOLE_SETUP.md
+
+IMAGE_SEO_GUIDE.md
+
+The reports must explain:
+
+- What was wrong.
+- What was corrected.
+- Which files changed.
+- Which URLs are indexable.
+- Which URLs are noindex.
+- How metadata works.
+- How products enter the sitemap.
+- How the owner edits SEO information.
+- How to submit the sitemap.
+- What remains dependent on owner verification.
+
+Clearly distinguish implemented items from external-account tasks that the owner still has to complete.
+
+==================================================
+FINAL NON-NEGOTIABLE REQUIREMENTS
+==================================================
+
+1. Preserve the current Lovey's website brand and premium visual design.
+2. Preserve existing React/Vite/Express/Firebase functionality unless a thoroughly tested architectural change is necessary.
+3. Do not break the existing Business Management System.
+4. Do not invent business information.
+5. Do not index unverified starter products.
+6. Do not use fake reviews.
+7. Do not fabricate ratings.
+8. Do not use inaccurate geo coordinates.
+9. Do not publish unverified opening hours.
+10. Do not reintroduce Razorpay.
+11. Do not introduce SMS or OTP.
+12. Do not add AI runtime functionality.
+13. Do not create unnecessary paid API dependencies.
+14. Do not generate keyword-stuffed pages.
+15. Do not promise first-page or number-one rankings.
+16. Do not claim indexing or AI citations are guaranteed.
+
+The objective is to build a high-quality, technically accessible, locally authoritative and semantically understandable business website.
+
+The main competition focus is relevant bakery, cake, pizza and food-ordering searches in Renukoot and Sonbhadra.
+
+Start by inspecting the existing source code, then implement the improvements directly.
+
+Do not stop after generating an audit report or recommendations.
+
+Complete the implementation, validate the output and document all remaining owner-dependent actions.

@@ -865,18 +865,18 @@ export const AdvancePaymentView: React.FC<AdvancePaymentViewProps> = ({
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-[10px] uppercase tracking-wider text-[#6B544E] block">
                         Merchant UPI ID (VPA)
                       </span>
-                      <span className="font-mono-num text-base sm:text-lg font-bold text-[#3B2824] select-all">
+                      <span className="font-mono-num text-base sm:text-lg font-bold text-[#3B2824] select-all break-all">
                         {paymentSettings.upiId || 'loveysbakery@pnb'}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={handleCopyUpiId}
-                      className="px-4 py-2 rounded-xl bg-[#3B2824] hover:bg-[#B94E62] text-[#FFF8F1] text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      className="px-4 py-2 rounded-xl bg-[#3B2824] hover:bg-[#B94E62] text-[#FFF8F1] text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
                     >
                       {copiedUpi ? (
                         <>
@@ -904,17 +904,17 @@ export const AdvancePaymentView: React.FC<AdvancePaymentViewProps> = ({
 
               {/* Right 5 Cols: Owner-Uploaded Actual Payment QR Code */}
               <div className="lg:col-span-5">
-                <div className="p-6 rounded-3xl bg-[#FFF8F1] border border-[#E6D7C8] text-center space-y-4">
+                <div className="p-4 sm:p-6 rounded-3xl bg-[#FFF8F1] border border-[#E6D7C8] text-center space-y-4">
                   <p className="text-xs font-bold uppercase tracking-widest text-[#3B2824]">
                     Scan Official UPI QR Code
                   </p>
 
                   {hasValidOwnerQr ? (
-                    <div className="bg-white p-4 rounded-2xl border border-[#E6D7C8] inline-block shadow-xs">
+                    <div className="bg-white p-3 sm:p-4 rounded-2xl border border-[#E6D7C8] inline-block shadow-xs max-w-full">
                       <img
                         src={paymentSettings.qrCodeImageUrl}
                         alt={`${paymentSettings.payeeDisplayName} Official UPI QR Code`}
-                        className="w-56 h-56 sm:w-64 sm:h-64 object-contain mx-auto"
+                        className="w-48 h-48 sm:w-64 sm:h-64 max-w-full aspect-square object-contain mx-auto"
                       />
                     </div>
                   ) : (

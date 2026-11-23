@@ -282,7 +282,15 @@ export const Scroll3DShowcase: React.FC<Scroll3DShowcaseProps> = ({
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
-          camera.aspect = width / height;
+          const aspect = width / height;
+          camera.aspect = aspect;
+          // On narrow mobile/portrait viewports (aspect < 1.15), pull camera slightly back
+          // so the 3D framed photographic monolith fits cleanly without side clipping.
+          // Desktop (aspect >= 1.15) remains at the exact 6.4 baseline distance.
+          camera.position.z =
+            aspect < 1.15
+              ? THREE.MathUtils.clamp(6.4 / Math.max(0.64, aspect * 0.88), 6.4, 9.1)
+              : 6.4;
           camera.updateProjectionMatrix();
           renderer.setSize(width, height, false);
           if (requestRenderRef.current) requestRenderRef.current();
@@ -549,8 +557,8 @@ export const Scroll3DShowcase: React.FC<Scroll3DShowcaseProps> = ({
             </div>
 
             {/* Active Chapter Narrative Card */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-[#281B18]/90 border border-[#49332E] space-y-5 shadow-xl">
-              <div className="flex items-center justify-between text-xs text-[#E5B867] font-mono-num">
+            <div className="p-5 sm:p-8 rounded-3xl bg-[#281B18]/90 border border-[#49332E] space-y-5 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-[#E5B867] font-mono-num">
                 <span>{activePanel.chapter}</span>
                 <span>{activePanel.metaTag}</span>
               </div>
@@ -599,13 +607,14 @@ export const Scroll3DShowcase: React.FC<Scroll3DShowcaseProps> = ({
             {!useCssFallback ? (
               <div
                 ref={canvasMountRef}
-                className="w-full h-[360px] sm:h-[460px] lg:h-[520px] cursor-grab active:cursor-grabbing"
+                style={{ touchAction: 'pan-y' }}
+                className="w-full h-[310px] sm:h-[460px] lg:h-[520px] cursor-grab active:cursor-grabbing"
               />
             ) : (
               /* CSS 3D Perspective Fallback for Reduced Motion / Mobile / WebGL Disabled */
               <div
-                className="w-full h-[360px] sm:h-[460px] lg:h-[520px] flex items-center justify-center p-6 relative"
-                style={{ perspective: '1200px' }}
+                className="w-full h-[310px] sm:h-[460px] lg:h-[520px] flex items-center justify-center p-4 sm:p-6 relative"
+                style={{ perspective: '1200px', touchAction: 'pan-y' }}
               >
                 {panels.map((panel, idx) => {
                   const offset = idx - activeIndex;

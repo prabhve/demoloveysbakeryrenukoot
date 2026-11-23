@@ -1,7 +1,13 @@
 import React, { Component, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { inject } from '@vercel/analytics';
 import App from './App.tsx';
 import './index.css';
+
+// ============================================================================
+// VERCEL WEB ANALYTICS
+// ============================================================================
+inject();
 
 // ============================================================================
 // GOOGLE MAPS PLATFORM — TIER 1 IN-APP QUOTA / AUTH FAILURE DETECTION

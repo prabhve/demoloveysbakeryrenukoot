@@ -91,7 +91,7 @@ import {
   X,
 } from 'lucide-react';
 
-const Scroll3DShowcase = React.lazy(() => import('./components/Scroll3DShowcase'));
+import Scroll3DShowcase from './components/Scroll3DShowcase';
 
 export interface CartItem {
   cartItemId: string;
@@ -3362,15 +3362,7 @@ export default function App() {
             {/* ============================================================== */}
             {/* SECTION B — SCROLL-BASED 3D EXPERIENCE */}
             {/* ============================================================== */}
-            <React.Suspense
-              fallback={
-                <div className="max-w-7xl mx-auto px-4 py-16 text-center text-xs text-[#6B544E]">
-                  Loading 3D Photographic Showcase...
-                </div>
-              }
-            >
-              <Scroll3DShowcase onNavigate={navigate} />
-            </React.Suspense>
+            <Scroll3DShowcase onNavigate={navigate} />
 
             {/* ============================================================== */}
             {/* SECTION C — VISUAL CATEGORY SHOWCASE (EDITORIAL BENTO GRID) */}

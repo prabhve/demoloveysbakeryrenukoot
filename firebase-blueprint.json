@@ -1,0 +1,836 @@
+{
+  "entities": {
+    "AdminProfile": {
+      "title": "AdminProfile",
+      "description": "Administrator role record in Firestore.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "role": { "type": "string", "enum": ["owner", "manager", "staff"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "BusinessSettings": {
+      "title": "BusinessSettings",
+      "description": "Global configurable business settings and editable Our Story content for Lovey's Bakery & Pizza Corners.",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string", "maxLength": 120 },
+        "hindiName": { "type": "string", "maxLength": 120 },
+        "tagline": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "whatsapp": { "type": "string", "maxLength": 32 },
+        "address": { "type": "string", "maxLength": 300 },
+        "openingHours": { "type": "string", "maxLength": 160 },
+        "holidayNotice": { "type": "string", "maxLength": 240 },
+        "announcementText": { "type": "string", "maxLength": 240 },
+        "ourStoryContent": { "type": "string", "maxLength": 5000 },
+        "deliveryEnabled": { "type": "boolean" },
+        "pickupEnabled": { "type": "boolean" },
+        "dineInEnabled": { "type": "boolean" },
+        "codEnabled": { "type": "boolean" },
+        "payAtStoreEnabled": { "type": "boolean" },
+        "onlinePaymentEnabled": { "type": "boolean" },
+        "taxPercentage": { "type": "number" },
+        "packagingCharge": { "type": "number" },
+        "minDeliveryOrder": { "type": "number" },
+        "baseDeliveryFee": { "type": "number" },
+        "freeDeliveryThreshold": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "businessName",
+        "hindiName",
+        "tagline",
+        "phone",
+        "whatsapp",
+        "address",
+        "openingHours",
+        "holidayNotice",
+        "announcementText",
+        "ourStoryContent",
+        "deliveryEnabled",
+        "pickupEnabled",
+        "dineInEnabled",
+        "codEnabled",
+        "payAtStoreEnabled",
+        "onlinePaymentEnabled",
+        "taxPercentage",
+        "packagingCharge",
+        "minDeliveryOrder",
+        "baseDeliveryFee",
+        "freeDeliveryThreshold"
+      ]
+    },
+    "PaymentSettings": {
+      "title": "PaymentSettings",
+      "description": "Owner-controlled Manual UPI Advance Payment configuration and verification rules (/admin/settings/payments).",
+      "type": "object",
+      "properties": {
+        "upiId": { "type": "string", "maxLength": 120 },
+        "payeeDisplayName": { "type": "string", "maxLength": 120 },
+        "qrCodeImageUrl": { "type": "string", "maxLength": 500000 },
+        "paymentInstructions": { "type": "string", "maxLength": 2000 },
+        "advanceType": { "type": "string", "enum": ["percentage", "fixed"], "maxLength": 20 },
+        "advancePercentage": { "type": "number" },
+        "fixedAdvanceAmount": { "type": "number" },
+        "minAdvanceAmount": { "type": "number" },
+        "maxAdvanceAmount": { "type": "number" },
+        "paymentDeadlineMinutes": { "type": "number" },
+        "remainingBalancePolicy": { "type": "string", "maxLength": 1000 },
+        "mandatoryForDelivery": { "type": "boolean" },
+        "mandatoryForPickup": { "type": "boolean" },
+        "useSeparateRulesByOrderType": { "type": "boolean" },
+        "pickupAdvanceType": { "type": "string", "enum": ["percentage", "fixed"], "maxLength": 20 },
+        "pickupAdvancePercentage": { "type": "number" },
+        "pickupFixedAdvanceAmount": { "type": "number" },
+        "requireAdvanceForQuotation": { "type": "boolean" },
+        "verificationPhone": { "type": "string", "maxLength": 32 },
+        "verificationWhatsapp": { "type": "string", "maxLength": 32 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "upiId",
+        "payeeDisplayName",
+        "qrCodeImageUrl",
+        "paymentInstructions",
+        "advanceType",
+        "advancePercentage",
+        "fixedAdvanceAmount",
+        "minAdvanceAmount",
+        "maxAdvanceAmount",
+        "paymentDeadlineMinutes",
+        "remainingBalancePolicy",
+        "mandatoryForDelivery",
+        "mandatoryForPickup",
+        "useSeparateRulesByOrderType",
+        "pickupAdvanceType",
+        "pickupAdvancePercentage",
+        "pickupFixedAdvanceAmount",
+        "requireAdvanceForQuotation",
+        "verificationPhone",
+        "verificationWhatsapp"
+      ]
+    },
+    "OrderPayment": {
+      "title": "OrderPayment",
+      "description": "Advance payment tracking record per order keyed by orderNumber.",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string", "maxLength": 40, "pattern": "^[A-Z0-9\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "maxLength": 32 },
+        "fulfilmentType": { "type": "string", "enum": ["delivery", "pickup", "dine_in"], "maxLength": 20 },
+        "totalOrderAmount": { "type": "number" },
+        "advanceRequired": { "type": "boolean" },
+        "requiredAdvanceAmount": { "type": "number" },
+        "submittedAmount": { "type": "number" },
+        "verifiedAdvanceAmount": { "type": "number" },
+        "remainingBalanceAmount": { "type": "number" },
+        "paymentStatus": {
+          "type": "string",
+          "enum": [
+            "NOT_REQUIRED",
+            "AWAITING_PAYMENT",
+            "CONTACT_PENDING",
+            "PAYMENT_SUBMITTED",
+            "VERIFIED",
+            "REJECTED",
+            "RESUBMISSION_REQUESTED",
+            "EXPIRED"
+          ],
+          "maxLength": 40
+        },
+        "latestSubmissionId": { "type": "string", "maxLength": 80 },
+        "latestUtrNumber": { "type": "string", "maxLength": 60 },
+        "latestScreenshotUrl": { "type": "string", "maxLength": 500000 },
+        "latestSubmittedAt": { "type": "string", "maxLength": 40 },
+        "rejectionReason": { "type": "string", "maxLength": 600 },
+        "internalAdminNote": { "type": "string", "maxLength": 1000 },
+        "verifiedByEmail": { "type": "string", "maxLength": 200 },
+        "verifiedAt": { "type": "string", "maxLength": 40 },
+        "paymentDeadlineIso": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderNumber",
+        "userId",
+        "customerName",
+        "customerPhone",
+        "fulfilmentType",
+        "totalOrderAmount",
+        "advanceRequired",
+        "requiredAdvanceAmount",
+        "submittedAmount",
+        "verifiedAdvanceAmount",
+        "remainingBalanceAmount",
+        "paymentStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PaymentSubmission": {
+      "title": "PaymentSubmission",
+      "description": "Individual customer payment evidence submission containing UPI UTR and payment screenshot.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "orderNumber": { "type": "string", "maxLength": 40, "pattern": "^[A-Z0-9\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "maxLength": 32 },
+        "fulfilmentType": { "type": "string", "enum": ["delivery", "pickup", "dine_in"], "maxLength": 20 },
+        "totalOrderAmount": { "type": "number" },
+        "requiredAdvanceAmount": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "utrNumber": { "type": "string", "maxLength": 60 },
+        "screenshotUrl": { "type": "string", "maxLength": 500000 },
+        "screenshotMimeType": { "type": "string", "maxLength": 40 },
+        "paymentDateTime": { "type": "string", "maxLength": 60 },
+        "customerNote": { "type": "string", "maxLength": 600 },
+        "verificationStatus": {
+          "type": "string",
+          "enum": ["SUBMITTED", "VERIFIED", "REJECTED", "RESUBMISSION_REQUESTED"],
+          "maxLength": 40
+        },
+        "rejectionReason": { "type": "string", "maxLength": 600 },
+        "adminNote": { "type": "string", "maxLength": 600 },
+        "reviewedByEmail": { "type": "string", "maxLength": 200 },
+        "reviewedAt": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "orderNumber",
+        "userId",
+        "customerName",
+        "customerPhone",
+        "fulfilmentType",
+        "totalOrderAmount",
+        "requiredAdvanceAmount",
+        "amountPaid",
+        "utrNumber",
+        "screenshotUrl",
+        "screenshotMimeType",
+        "paymentDateTime",
+        "verificationStatus",
+        "createdAt"
+      ]
+    },
+    "PaymentVerificationHistory": {
+      "title": "PaymentVerificationHistory",
+      "description": "Immutable audit trail of customer payment submissions and admin verification/rejection actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "orderNumber": { "type": "string", "maxLength": 40, "pattern": "^[A-Z0-9\\-]+$" },
+        "submissionId": { "type": "string", "maxLength": 80 },
+        "action": {
+          "type": "string",
+          "enum": [
+            "ORDER_CREATED_AWAITING_ADVANCE",
+            "CUSTOMER_CONTACT_PENDING",
+            "PAYMENT_SUBMITTED",
+            "PAYMENT_RESUBMITTED",
+            "PAYMENT_VERIFIED",
+            "PAYMENT_REJECTED",
+            "RESUBMISSION_REQUESTED",
+            "INTERNAL_NOTE_ADDED"
+          ],
+          "maxLength": 50
+        },
+        "actorRole": { "type": "string", "enum": ["customer", "admin", "system"], "maxLength": 20 },
+        "actorIdentifier": { "type": "string", "maxLength": 200 },
+        "amount": { "type": "number" },
+        "utrNumber": { "type": "string", "maxLength": 60 },
+        "note": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "orderNumber",
+        "action",
+        "actorRole",
+        "actorIdentifier",
+        "note",
+        "createdAt"
+      ]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product and cake catalogue category.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 80 },
+        "hindiName": { "type": "string", "maxLength": 80 },
+        "slug": { "type": "string", "maxLength": 80, "pattern": "^[a-z0-9\\-]+$" },
+        "description": { "type": "string", "maxLength": 300 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "sortOrder": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug", "description", "imageUrl", "isActive"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Bakery, cake, pizza, or quick-bite product listing with multi-dimensional variant options (size, flavor, frosting, add-ons).",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "hindiName": { "type": "string", "maxLength": 120 },
+        "slug": { "type": "string", "maxLength": 120, "pattern": "^[a-z0-9\\-]+$" },
+        "categoryId": { "type": "string", "maxLength": 80 },
+        "categorySlug": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 600 },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "variantsSummary": { "type": "string", "maxLength": 400 },
+        "flavorsSummary": { "type": "string", "maxLength": 400 },
+        "frostingsSummary": { "type": "string", "maxLength": 400 },
+        "addonsSummary": { "type": "string", "maxLength": 400 },
+        "isAvailable": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "isBestseller": { "type": "boolean" },
+        "isEggless": { "type": "boolean" },
+        "prepTimeMinutes": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "name",
+        "slug",
+        "categoryId",
+        "imageUrl",
+        "variantsSummary",
+        "addonsSummary",
+        "isAvailable",
+        "isBestseller",
+        "isEggless"
+      ]
+    },
+    "CakeDesign": {
+      "title": "CakeDesign",
+      "description": "Custom cake studio design template or quotation listing.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "slug": { "type": "string", "maxLength": 120, "pattern": "^[a-z0-9\\-]+$" },
+        "theme": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 600 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "basePrice": { "type": "number" },
+        "decorationCharge": { "type": "number" },
+        "isQuotationBased": { "type": "boolean" },
+        "weightsAllowed": { "type": "string", "maxLength": 200 },
+        "flavoursAllowed": { "type": "string", "maxLength": 300 },
+        "fillingsAllowed": { "type": "string", "maxLength": 300 },
+        "frostingsAllowed": { "type": "string", "maxLength": 200 },
+        "prepTimeHours": { "type": "number" },
+        "advanceBookingHours": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "description",
+        "imageUrl",
+        "isQuotationBased",
+        "isActive"
+      ]
+    },
+    "MediaAsset": {
+      "title": "MediaAsset",
+      "description": "Gallery and product media library asset.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 120 },
+        "altText": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 60 },
+        "mediaType": { "type": "string", "enum": ["image", "video"], "maxLength": 20 },
+        "url": { "type": "string", "maxLength": 800 },
+        "aspectRatio": { "type": "string", "maxLength": 20 },
+        "sortOrder": { "type": "number" },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "title",
+        "altText",
+        "aspectRatio"
+      ]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Promotional discount coupon configuration.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 32, "pattern": "^[A-Z0-9_\\-]+$" },
+        "description": { "type": "string", "maxLength": 200 },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed", "flat"], "maxLength": 20 },
+        "discountValue": { "type": "number" },
+        "minCartValue": { "type": "number" },
+        "maxUsage": { "type": "number" },
+        "usedCount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "code",
+        "discountType",
+        "discountValue",
+        "minCartValue",
+        "maxUsage",
+        "usedCount",
+        "isActive"
+      ]
+    },
+    "DeliveryZone": {
+      "title": "DeliveryZone",
+      "description": "Serviceable locality and PIN code delivery configuration.",
+      "type": "object",
+      "properties": {
+        "pinCode": { "type": "string", "maxLength": 12 },
+        "localityName": { "type": "string", "maxLength": 120 },
+        "deliveryFee": { "type": "number" },
+        "minOrderAmount": { "type": "number" },
+        "estimatedMinutes": { "type": "number" },
+        "isServiceable": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "pinCode",
+        "localityName",
+        "deliveryFee",
+        "minOrderAmount",
+        "isServiceable"
+      ]
+    },
+    "DiningTable": {
+      "title": "DiningTable",
+      "description": "In-store dining table and QR ordering configuration.",
+      "type": "object",
+      "properties": {
+        "tableNumber": { "type": "string", "maxLength": 20 },
+        "label": { "type": "string", "maxLength": 80 },
+        "capacity": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "isOccupied": { "type": "boolean" },
+        "qrUrl": { "type": "string", "maxLength": 300 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tableNumber", "label", "capacity", "isActive", "isOccupied", "qrUrl"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order containing fulfilment, advance payment, and custom cake details (PII isolated to owner and admin).",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string", "maxLength": 40, "pattern": "^[A-Z0-9\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "maxLength": 24 },
+        "customerEmail": { "type": "string", "maxLength": 160 },
+        "fulfilmentType": { "type": "string", "enum": ["delivery", "pickup", "dine_in"], "maxLength": 20 },
+        "orderStatus": { "type": "string", "maxLength": 40 },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "paymentStatus": { "type": "string", "maxLength": 40 },
+        "advanceRequired": { "type": "boolean" },
+        "requiredAdvanceAmount": { "type": "number" },
+        "submittedAdvanceAmount": { "type": "number" },
+        "verifiedAdvanceAmount": { "type": "number" },
+        "remainingBalanceAmount": { "type": "number" },
+        "paymentDeadlineIso": { "type": "string", "maxLength": 40 },
+        "latestSubmissionId": { "type": "string", "maxLength": 80 },
+        "paymentRejectionReason": { "type": "string", "maxLength": 600 },
+        "deliveryAddress": { "type": "string", "maxLength": 500 },
+        "pinCode": { "type": "string", "maxLength": 16 },
+        "pickupDate": { "type": "string", "maxLength": 40 },
+        "pickupTimeSlot": { "type": "string", "maxLength": 80 },
+        "tableNumber": { "type": "string", "maxLength": 20 },
+        "specialInstructions": { "type": "string", "maxLength": 500 },
+        "itemsSummary": { "type": "string", "maxLength": 4000 },
+        "customCakeDetails": { "type": "string", "maxLength": 2000 },
+        "subtotal": { "type": "number" },
+        "discountAmount": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "packagingCharge": { "type": "number" },
+        "taxAmount": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderNumber",
+        "userId",
+        "customerName",
+        "customerPhone",
+        "fulfilmentType",
+        "orderStatus",
+        "paymentMethod",
+        "paymentStatus",
+        "subtotal",
+        "discountAmount",
+        "deliveryFee",
+        "packagingCharge",
+        "taxAmount",
+        "totalAmount",
+        "itemsSummary",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OrderSummary": {
+      "title": "OrderSummary",
+      "description": "Publicly queryable non-PII order tracking record keyed by orderNumber.",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string", "maxLength": 40, "pattern": "^[A-Z0-9\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "fulfilmentType": { "type": "string", "enum": ["delivery", "pickup", "dine_in"], "maxLength": 20 },
+        "orderStatus": { "type": "string", "maxLength": 40 },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "paymentStatus": { "type": "string", "maxLength": 40 },
+        "advanceRequired": { "type": "boolean" },
+        "requiredAdvanceAmount": { "type": "number" },
+        "submittedAdvanceAmount": { "type": "number" },
+        "verifiedAdvanceAmount": { "type": "number" },
+        "remainingBalanceAmount": { "type": "number" },
+        "paymentDeadlineIso": { "type": "string", "maxLength": 40 },
+        "latestSubmissionId": { "type": "string", "maxLength": 80 },
+        "paymentRejectionReason": { "type": "string", "maxLength": 600 },
+        "itemsSummary": { "type": "string", "maxLength": 4000 },
+        "pickupDate": { "type": "string", "maxLength": 40 },
+        "pickupTimeSlot": { "type": "string", "maxLength": 80 },
+        "tableNumber": { "type": "string", "maxLength": 20 },
+        "totalAmount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderNumber",
+        "fulfilmentType",
+        "orderStatus",
+        "paymentMethod",
+        "paymentStatus",
+        "totalAmount",
+        "itemsSummary",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StaffMember": {
+      "title": "StaffMember",
+      "description": "Authorised staff member or role invitation record managed by the owner using individual password authentication.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "email": { "type": "string", "maxLength": 200 },
+        "username": { "type": "string", "maxLength": 80 },
+        "name": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "roleId": { "type": "string", "maxLength": 60 },
+        "roleName": { "type": "string", "maxLength": 80 },
+        "permissionsSummary": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["active", "invited", "suspended", "revoked"], "maxLength": 30 },
+        "requirePasswordChange": { "type": "boolean" },
+        "sessionVersion": { "type": "number" },
+        "sessionTimeoutMinutes": { "type": "number" },
+        "lastLoginAt": { "type": "string", "maxLength": 40 },
+        "passwordUpdatedAt": { "type": "string", "maxLength": 40 },
+        "invitedByEmail": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "name", "roleId", "roleName", "permissionsSummary", "status", "createdAt", "updatedAt"]
+    },
+    "RoleDefinition": {
+      "title": "RoleDefinition",
+      "description": "RBAC role definition with granular permissions matrix.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 60 },
+        "name": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 400 },
+        "isSystemRole": { "type": "boolean" },
+        "permissionsSummary": { "type": "string", "maxLength": 1000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "description", "isSystemRole", "permissionsSummary", "updatedAt"]
+    },
+    "InventoryLog": {
+      "title": "InventoryLog",
+      "description": "Immutable stock movement and inventory adjustment record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "entityType": { "type": "string", "enum": ["product", "variant", "ingredient"], "maxLength": 30 },
+        "entityId": { "type": "string", "maxLength": 120 },
+        "entityName": { "type": "string", "maxLength": 160 },
+        "variantLabel": { "type": "string", "maxLength": 120 },
+        "changeType": { "type": "string", "enum": ["restock", "purchase", "sale_deduction", "order_cancel_restore", "wastage", "damaged", "manual_adjustment"], "maxLength": 40 },
+        "previousStock": { "type": "number" },
+        "delta": { "type": "number" },
+        "newStock": { "type": "number" },
+        "reason": { "type": "string", "maxLength": 500 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "entityType", "entityId", "entityName", "changeType", "previousStock", "delta", "newStock", "reason", "actorEmail", "createdAt"]
+    },
+    "RawMaterial": {
+      "title": "RawMaterial",
+      "description": "Optional bakery raw-material / ingredient inventory record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "name": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 80 },
+        "unit": { "type": "string", "maxLength": 30 },
+        "currentStock": { "type": "number" },
+        "minThreshold": { "type": "number" },
+        "costPerUnit": { "type": "number" },
+        "supplierName": { "type": "string", "maxLength": 120 },
+        "recipeNotes": { "type": "string", "maxLength": 600 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "unit", "currentStock", "minThreshold", "updatedAt"]
+    },
+    "CustomerCrmNote": {
+      "title": "CustomerCrmNote",
+      "description": "CRM profile metadata, tags, communication preferences, and internal staff notes for a customer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "customerPhone": { "type": "string", "maxLength": 32 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerEmail": { "type": "string", "maxLength": 200 },
+        "savedAddresses": { "type": "string", "maxLength": 1000 },
+        "tagsSummary": { "type": "string", "maxLength": 400 },
+        "segment": { "type": "string", "maxLength": 60 },
+        "preferredFulfilment": { "type": "string", "maxLength": 40 },
+        "whatsappOptIn": { "type": "boolean" },
+        "phoneCallOptIn": { "type": "boolean" },
+        "internalNotes": { "type": "string", "maxLength": 2000 },
+        "supportHistorySummary": { "type": "string", "maxLength": 2000 },
+        "privacyRequestStatus": { "type": "string", "maxLength": 60 },
+        "updatedByEmail": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerPhone", "customerName", "updatedAt"]
+    },
+    "WebsiteConfig": {
+      "title": "WebsiteConfig",
+      "description": "Complete owner-managed Website CMS configuration covering Homepage Hero, Section Visibility & Ordering, Navigation, Footer, Theme, and SEO.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 40 },
+        "heroHeading": { "type": "string", "maxLength": 240 },
+        "heroHeadingHi": { "type": "string", "maxLength": 240 },
+        "heroSubparagraph": { "type": "string", "maxLength": 600 },
+        "heroImageUrl": { "type": "string", "maxLength": 1000 },
+        "primaryCtaText": { "type": "string", "maxLength": 80 },
+        "primaryCtaLink": { "type": "string", "maxLength": 120 },
+        "secondaryCtaText": { "type": "string", "maxLength": 80 },
+        "secondaryCtaLink": { "type": "string", "maxLength": 120 },
+        "promoBannerTitle": { "type": "string", "maxLength": 160 },
+        "promoBannerSubtitle": { "type": "string", "maxLength": 300 },
+        "promoBannerActive": { "type": "boolean" },
+        "sectionsOrderSummary": { "type": "string", "maxLength": 1000 },
+        "navigationLinksJson": { "type": "string", "maxLength": 3000 },
+        "footerDescription": { "type": "string", "maxLength": 600 },
+        "footerCopyright": { "type": "string", "maxLength": 240 },
+        "footerLinksJson": { "type": "string", "maxLength": 3000 },
+        "seoDefaultTitle": { "type": "string", "maxLength": 160 },
+        "seoDefaultDescription": { "type": "string", "maxLength": 400 },
+        "seoKeywords": { "type": "string", "maxLength": 400 },
+        "ogImageUrl": { "type": "string", "maxLength": 1000 },
+        "themePalettePreset": { "type": "string", "maxLength": 60 },
+        "themeTypographyPreset": { "type": "string", "maxLength": 60 },
+        "themeButtonStyle": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["draft", "published"], "maxLength": 20 },
+        "updatedByEmail": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "heroHeading", "heroSubparagraph", "primaryCtaText", "primaryCtaLink", "status", "updatedAt"]
+    },
+    "CustomPage": {
+      "title": "CustomPage",
+      "description": "Editable public website page (About Us, Contact, Privacy Policy, Terms, Delivery Policy, Cancellation Policy, or custom pages).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "slug": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 160 },
+        "subtitle": { "type": "string", "maxLength": 300 },
+        "content": { "type": "string", "maxLength": 15000 },
+        "heroImageUrl": { "type": "string", "maxLength": 1000 },
+        "seoTitle": { "type": "string", "maxLength": 160 },
+        "seoDescription": { "type": "string", "maxLength": 400 },
+        "isPublished": { "type": "boolean" },
+        "updatedByEmail": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "slug", "title", "content", "isPublished", "updatedAt"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Internal admin notification event (new order, payment submitted, low stock, custom cake enquiry, etc.).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "category": { "type": "string", "enum": ["order", "payment", "inventory", "custom_cake", "crm", "website", "security"], "maxLength": 30 },
+        "title": { "type": "string", "maxLength": 160 },
+        "message": { "type": "string", "maxLength": 600 },
+        "targetRoute": { "type": "string", "maxLength": 120 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "category", "title", "message", "isRead", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Append-only security and operational audit trail recording actor, action, entity, timestamp, metadata, and outcome.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "maxLength": 60 },
+        "action": { "type": "string", "maxLength": 80 },
+        "entityType": { "type": "string", "maxLength": 60 },
+        "entityId": { "type": "string", "maxLength": 120 },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "outcome": { "type": "string", "enum": ["success", "failure", "warning"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actorEmail", "actorRole", "action", "entityType", "entityId", "summary", "outcome", "createdAt"]
+    },
+    "BackupRecord": {
+      "title": "BackupRecord",
+      "description": "Verified database snapshot export and recovery metadata log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "label": { "type": "string", "maxLength": 160 },
+        "collectionsIncluded": { "type": "string", "maxLength": 600 },
+        "totalDocumentsCount": { "type": "number" },
+        "sizeBytes": { "type": "number" },
+        "checksumSha256": { "type": "string", "maxLength": 120 },
+        "createdByEmail": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["verified", "restored"], "maxLength": 30 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "label", "collectionsIncluded", "totalDocumentsCount", "sizeBytes", "createdByEmail", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": "AdminProfile",
+      "description": "Administrator user records."
+    },
+    "/business_settings/{settingId}": {
+      "schema": "BusinessSettings",
+      "description": "Singleton business configuration document."
+    },
+    "/payment_settings/{settingId}": {
+      "schema": "PaymentSettings",
+      "description": "Singleton manual UPI advance payment settings configured by owner."
+    },
+    "/order_payments/{orderNumber}": {
+      "schema": "OrderPayment",
+      "description": "Advance payment tracking record per order."
+    },
+    "/payment_submissions/{submissionId}": {
+      "schema": "PaymentSubmission",
+      "description": "Customer uploaded payment screenshots and UTR reference submissions."
+    },
+    "/payment_verification_history/{historyId}": {
+      "schema": "PaymentVerificationHistory",
+      "description": "Audit log of payment submissions and admin verifications/rejections."
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Menu and bakery catalogue categories."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Bakery, pizza, and food product items."
+    },
+    "/cake_designs/{designId}": {
+      "schema": "CakeDesign",
+      "description": "Custom cake studio designs and quotation templates."
+    },
+    "/media_assets/{assetId}": {
+      "schema": "MediaAsset",
+      "description": "Gallery and store photography media library."
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Promotional coupon codes."
+    },
+    "/delivery_zones/{zoneId}": {
+      "schema": "DeliveryZone",
+      "description": "Serviceable PIN codes and locality delivery rules."
+    },
+    "/dining_tables/{tableId}": {
+      "schema": "DiningTable",
+      "description": "In-store dining tables and QR code configs."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Full customer orders containing PII, isolated to the order creator and admins."
+    },
+    "/order_summaries/{orderNumber}": {
+      "schema": "OrderSummary",
+      "description": "Non-PII order status tracking documents keyed by human-readable orderNumber."
+    },
+    "/staff_members/{staffId}": {
+      "schema": "StaffMember",
+      "description": "Staff accounts, role assignments, and MFA status."
+    },
+    "/role_definitions/{roleId}": {
+      "schema": "RoleDefinition",
+      "description": "RBAC role definitions and granular permission matrices."
+    },
+    "/inventory_logs/{logId}": {
+      "schema": "InventoryLog",
+      "description": "Immutable stock adjustments, purchases, wastage, and order reservations."
+    },
+    "/raw_materials/{materialId}": {
+      "schema": "RawMaterial",
+      "description": "Bakery raw materials, ingredients, and BOM stock levels."
+    },
+    "/customer_crm_notes/{customerId}": {
+      "schema": "CustomerCrmNote",
+      "description": "Private CRM customer tags, communication preferences, and staff notes."
+    },
+    "/website_config/{configId}": {
+      "schema": "WebsiteConfig",
+      "description": "Publicly readable, admin-editable Website CMS configuration (Homepage, Navigation, Footer, Theme, SEO)."
+    },
+    "/custom_pages/{pageId}": {
+      "schema": "CustomPage",
+      "description": "Publicly readable, admin-editable website content pages."
+    },
+    "/admin_notifications/{notifId}": {
+      "schema": "AdminNotification",
+      "description": "Internal admin notifications and activity alerts."
+    },
+    "/audit_logs/{auditId}": {
+      "schema": "AuditLog",
+      "description": "Append-only security and operational audit trail."
+    },
+    "/backup_records/{backupId}": {
+      "schema": "BackupRecord",
+      "description": "Verified database snapshot export and recovery metadata records."
+    }
+  }
+}

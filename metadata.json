@@ -1,0 +1,6 @@
+{
+  "name": "Lovey's Bakery & Pizza Corners",
+  "description": "Freshly Baked. Beautifully Celebrated. Official digital storefront, custom cake design studio, and online food ordering platform for Lovey's Bakery & Pizza Corners in Renukoot, Sonbhadra.",
+  "requestFramePermissions": ["microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1254 @@
+# MAJOR PROJECT UPGRADE: LOVEY'S COMPLETE BUSINESS MANAGEMENT SYSTEM (BMS)
+
+Act as an enterprise software architect, principal full-stack engineer, cybersecurity architect, CRM product designer, inventory management specialist and premium SaaS dashboard UX designer.
+
+We are upgrading the existing Lovey's Bakery & Pizza Corners website.
+
+Your task is to build a complete, enterprise-quality, owner-managed ADMIN DASHBOARD that controls the entire business website and its daily operations.
+
+The owner must be able to independently manage practically every business-facing part of the website without requiring the original developer.
+
+This is not a basic admin panel.
+
+Build a comprehensive Business Management System (BMS) with:
+
+- Store management.
+- E-commerce management.
+- Order management.
+- Inventory management.
+- Customer Relationship Management (CRM).
+- Payment verification.
+- Cake customisation management.
+- Product management.
+- Category management.
+- Website content management.
+- Homepage management.
+- Gallery and media management.
+- Promotions.
+- Analytics.
+- Staff access control.
+- Security management.
+- Business settings.
+
+IMPORTANT PROJECT RULES:
+
+1. First inspect the existing repository and complete application.
+2. Preserve the working website and all existing business functionalities.
+3. Continue using the existing Next.js, TypeScript, Supabase and existing payment architecture wherever appropriate.
+4. Do not discard existing database records.
+5. Create safe migrations for any schema changes.
+6. Do not replace real database functionality with mock data.
+7. Do not introduce SMS functionality.
+8. Do not introduce AI functionality in the deployed website.
+9. Do not create a disconnected or merely visual admin dashboard.
+10. Every major admin feature must be connected to its actual backend functionality.
+
+==================================================
+1. ADMIN PANEL ACCESS AND FOOTER LOGIN
+==================================================
+
+Create a secure administration entry.
+
+Admin route:
+
+/admin
+
+Create a discreet footer link across the public website:
+
+"Business Admin"
+
+or:
+
+"Staff Login"
+
+The link should open:
+
+/admin/login
+
+Do not expose the dashboard itself to unauthenticated users.
+
+Unauthenticated visitors must always be redirected to the secure admin login.
+
+The public footer must never reveal admin records, internal endpoints, employee information or sensitive operational data.
+
+Do not treat a hidden URL as security.
+
+All access must be controlled by authentication, server-side authorisation and database-level permission policies.
+
+Implement appropriate public-page metadata rules so private admin pages are not indexed by search engines.
+
+==================================================
+2. PREMIUM ADMIN LOGIN AND AUTHENTICATION
+==================================================
+
+Design a professional, attractive and highly secure login experience.
+
+The login page must match Lovey's visual identity without compromising security.
+
+Implement:
+
+- Supabase Authentication.
+- Strong password policy.
+- Passkey/WebAuthn support where available.
+- TOTP authenticator application MFA.
+- Secure recovery codes.
+- Optional additional verification for sensitive actions.
+- Secure session handling.
+- Automatic session expiry after configured inactivity.
+- Login attempt rate limiting.
+- Protection against brute-force attempts.
+- Suspicious login monitoring.
+- Account lockout or challenge policies.
+- Secure logout from all sessions.
+- Password reset through secure configured recovery mechanisms.
+
+Do not implement SMS OTP or SMS-based account recovery.
+
+Do not create a public signup page for administrators.
+
+Only an authorised owner should be allowed to invite or provision new staff accounts.
+
+Prevent user enumeration through login and recovery error messages.
+
+Recovery procedures must not allow an unauthorised person to bypass MFA.
+
+==================================================
+3. ADVANCED ROLE-BASED ACCESS CONTROL
+==================================================
+
+Create a fully manageable staff access management system.
+
+Initial roles:
+
+A. OWNER / SUPER ADMIN
+
+Full control over business-facing operations and security settings.
+
+Permissions include:
+
+- All dashboard modules.
+- Financial information.
+- Payment verification.
+- Product and inventory management.
+- Website editing.
+- Customer information.
+- Staff invitations.
+- Role assignment.
+- Security settings.
+- Business configuration.
+- Reports and exports.
+- Backup and recovery controls.
+
+B. MANAGER
+
+Configurable operational permissions.
+
+C. ORDER MANAGER
+
+Access only to the operational order and fulfilment features granted to them.
+
+D. CONTENT MANAGER
+
+Access to content, images, videos, gallery, homepage and catalogue presentation features.
+
+E. CUSTOM ROLE
+
+Owner can create additional roles with granular permissions.
+
+PERMISSION MANAGEMENT:
+
+Support individual permissions such as:
+
+- View.
+- Create.
+- Edit.
+- Publish.
+- Delete/archive.
+- Export.
+- Approve.
+- Verify payments.
+- Manage settings.
+- Invite staff.
+
+Create a visual permission matrix.
+
+Owner can grant and revoke permissions individually.
+
+Enforce every permission on the server and in the database, not merely by hiding frontend buttons.
+
+Employees must never be able to grant themselves additional permissions or access owner-only settings.
+
+Require owner verification for especially sensitive operations such as:
+
+- Changing payment configuration.
+- Changing bank/UPI details.
+- Creating an administrator.
+- Changing role permissions.
+- Exporting sensitive customer data.
+- Disabling security controls.
+
+Log all such operations.
+
+==================================================
+4. MASTER ADMIN DASHBOARD
+==================================================
+
+Create an exceptionally user-friendly and visually refined dashboard.
+
+Design direction:
+
+- Premium SaaS dashboard.
+- Warm ivory, cocoa, berry and soft gold.
+- Clean typography.
+- Refined data tables.
+- Excellent spacing.
+- Useful analytics cards.
+- Easy navigation.
+- Responsive sidebar.
+- Collapsible sidebar.
+- Breadcrumb navigation.
+- Global search.
+- Notification centre.
+- Profile and session controls.
+
+Desktop layout should use a persistent sidebar.
+
+Mobile layout should use a practical responsive navigation pattern.
+
+DASHBOARD OVERVIEW:
+
+Display:
+
+- Total orders.
+- Today's orders.
+- Pending confirmation.
+- Payments awaiting verification.
+- Revenue.
+- Advance payment received.
+- Outstanding order balances.
+- Completed orders.
+- Cancelled orders.
+- Bestselling products.
+- Low-stock items.
+- Unavailable products.
+- New customers.
+- Repeat customers.
+- Recent activity.
+
+Provide configurable date filters.
+
+All figures must come from real database queries.
+
+Do not show fabricated statistics.
+
+Provide useful shortcuts:
+
+- Add Product.
+- Upload Cake Design.
+- Add Inventory.
+- Manage Orders.
+- Verify Payment.
+- Edit Homepage.
+- Upload Gallery Images.
+
+==================================================
+5. COMPLETE ORDER MANAGEMENT
+==================================================
+
+Create a fully featured order-management centre.
+
+Separate orders into:
+
+- Home Delivery.
+- Takeaway / Parcel.
+- Dine-In.
+- Custom Cake Orders.
+- Quotation Requests.
+
+Display:
+
+- Order number.
+- Customer name.
+- Customer phone.
+- Products.
+- Quantity.
+- Product variants.
+- Customisations.
+- Total order value.
+- Advance payment requirement.
+- Advance payment status.
+- Remaining balance.
+- Payment verification status.
+- Fulfilment method.
+- Order date.
+- Delivery/pickup date.
+- Order status.
+
+Provide:
+
+- Search.
+- Sorting.
+- Date filtering.
+- Order-type filtering.
+- Payment-status filtering.
+- Status filtering.
+- Customer filtering.
+- Export permissions.
+
+Create an individual order management screen.
+
+Allow authorised staff to:
+
+- Confirm orders.
+- Update preparation status.
+- Assign delivery/pickup status.
+- Add internal notes.
+- Review custom cake instructions.
+- Print receipts.
+- Review payment evidence.
+- Update fulfilment information.
+- Cancel orders under authorised rules.
+
+Keep a detailed order activity timeline.
+
+Prevent unauthorised modification of confirmed financial transactions.
+
+Create a safe procedure for any required order correction, adjustment or cancellation.
+
+==================================================
+6. COMPLETE PAYMENT MANAGEMENT
+==================================================
+
+Create a dedicated payment administration module.
+
+Route:
+
+/admin/payments
+
+Include:
+
+- Payment records.
+- Manual UPI submissions.
+- Payment screenshots.
+- UPI reference/UTR numbers.
+- Amount submitted.
+- Amount verified.
+- Remaining balance.
+- Payment dates.
+- Verification history.
+- Rejection reasons.
+- Refund records.
+- Payment reconciliation.
+
+Integrate the previously requested advance-payment verification workflow.
+
+The owner must be able to:
+
+- Update advance payment policy.
+- Configure fixed or percentage advances.
+- Configure separate policies for Home Delivery and Takeaway.
+- Upload and replace the genuine UPI payment QR.
+- Change authorised UPI details.
+- Review transaction evidence.
+- Verify or reject submissions.
+- Record refund information.
+
+Payment evidence must be stored privately.
+
+Only authorised payment-verification roles should be permitted to review and approve payment submissions.
+
+A screenshot or customer-provided reference number is not proof of a completed transaction. Require merchant-side transaction verification.
+
+Keep an auditable record of every financial action.
+
+Never falsely mark a manual payment as successful.
+
+==================================================
+7. COMPLETE INVENTORY AND STOCK MANAGEMENT
+==================================================
+
+Create a dedicated Inventory Management System.
+
+Route:
+
+/admin/inventory
+
+The owner should be able to manage stock for every product and product variant.
+
+Features:
+
+- Add stock.
+- Update stock.
+- Reduce stock.
+- Record stock purchases.
+- Record wastage.
+- Record damaged items.
+- Set low-stock alerts.
+- Set out-of-stock status.
+- Configure minimum stock thresholds.
+- View stock history.
+- View stock adjustments.
+- Track stock by product variant.
+
+For bakery operations, optionally provide a raw-material inventory system.
+
+Owner can create and manage their own ingredient records.
+
+Do not invent ingredients or quantities.
+
+Allow optional product recipes/BOM definitions so that owners who choose to maintain ingredient inventories can calculate consumption.
+
+Prevent overselling.
+
+Make stock deduction and restoration transactional.
+
+Reserve stock according to the existing order workflow.
+
+Restore appropriate stock when an order is cancelled, without allowing duplicate restoration.
+
+Display:
+
+- Current stock.
+- Reserved stock.
+- Available stock.
+- Low stock.
+- Out of stock.
+
+Every inventory adjustment must record:
+
+- Who made the change.
+- What changed.
+- Previous value.
+- New value.
+- Reason.
+- Date and time.
+
+==================================================
+8. PRODUCT AND MENU MANAGEMENT
+==================================================
+
+Make the complete catalogue editable.
+
+Route:
+
+/admin/products
+
+The owner can:
+
+- Create.
+- Edit.
+- Duplicate.
+- Publish.
+- Unpublish.
+- Archive.
+- Restore.
+- Delete where safe.
+
+Every product should support:
+
+- Product title.
+- Description.
+- Category.
+- Product photographs.
+- Price.
+- Sale price.
+- Variants.
+- Weight.
+- Size.
+- Quantity.
+- Add-ons.
+- Customisation options.
+- Stock.
+- Availability.
+- Preparation time.
+- Bestseller label.
+- Featured status.
+- SEO title.
+- SEO description.
+- URL slug.
+
+Allow bulk product import/export using validated CSV templates.
+
+Provide a preview before bulk changes are applied.
+
+Never permit uncontrolled bulk overwriting.
+
+==================================================
+9. COMPLETE CAKE DESIGN MANAGEMENT
+==================================================
+
+Create a dedicated cake administration module.
+
+The owner must be able to:
+
+- Upload multiple cake photographs.
+- Create cake designs.
+- Set available sizes and weights.
+- Set individual prices.
+- Configure flavours.
+- Configure fillings.
+- Configure decorations.
+- Set customisation charges.
+- Set preparation times.
+- Set minimum advance booking periods.
+- Control availability.
+- Enable quotation-based orders.
+- Publish or unpublish cake designs.
+
+Allow the owner to organise designs by:
+
+- Birthday.
+- Anniversary.
+- Wedding.
+- Engagement.
+- Kids.
+- Designer Cakes.
+- Chocolate Cakes.
+- Custom Designs.
+- Other owner-defined categories.
+
+All categories must be editable.
+
+Customer-facing cake product pages must immediately reflect approved updates from the admin.
+
+==================================================
+10. COMPLETE CRM — CUSTOMER RELATIONSHIP MANAGEMENT
+==================================================
+
+Create a full CRM module.
+
+Route:
+
+/admin/customers
+
+Maintain customer profiles using existing customer and order records.
+
+Display:
+
+- Customer name.
+- Mobile number.
+- Email, if provided.
+- Saved addresses.
+- Order history.
+- Total purchases.
+- Total orders.
+- Average order value.
+- Last order date.
+- Preferred fulfilment type.
+- Customer notes.
+- Support history.
+
+Support:
+
+- Customer search.
+- Filters.
+- Tags.
+- Segments.
+- Repeat customers.
+- New customers.
+- Frequent customers.
+- Customer communication preferences.
+
+Allow authorised staff to add internal notes.
+
+Support customer requests concerning:
+
+- Address correction.
+- Order history.
+- Data access.
+- Data correction.
+- Account-related requests.
+- Data deletion, subject to applicable legal retention obligations.
+
+Protect personal information.
+
+Only users with the relevant permissions should see customer phone numbers, addresses and other personal records.
+
+Do not expose customer data publicly.
+
+Do not create unsolicited customer marketing communications.
+
+Respect communication permissions and customer preferences.
+
+Keep WhatsApp and phone communication available.
+
+Do not introduce SMS.
+
+==================================================
+11. COMPLETE WEBSITE CONTENT MANAGEMENT SYSTEM
+==================================================
+
+THIS IS A MAJOR REQUIREMENT.
+
+The owner must be able to modify the website without contacting the developer.
+
+Create a dedicated Website Management section.
+
+Routes:
+
+/admin/website
+/admin/website/homepage
+/admin/website/pages
+/admin/website/navigation
+/admin/website/footer
+/admin/website/seo
+/admin/website/theme
+
+A. HOMEPAGE EDITOR
+
+Allow the owner to edit:
+
+- Hero heading.
+- Supporting paragraph.
+- Hero photographs.
+- CTA text.
+- CTA links.
+- Featured products.
+- Category sections.
+- Bestseller sections.
+- Custom cake showcase.
+- Promotional banners.
+- Brand story.
+- Gallery highlights.
+- Testimonials.
+- Contact section.
+- Homepage section visibility.
+- Section ordering.
+
+Use a controlled visual page builder with predefined components.
+
+Support drag-and-drop reordering where feasible.
+
+Provide:
+- Desktop preview.
+- Mobile preview.
+- Save draft.
+- Publish.
+- Preview before publishing.
+- Scheduled publication where supported.
+
+Avoid allowing arbitrary scripts or executable code to be entered through the CMS.
+
+B. PAGE MANAGEMENT
+
+The owner must be able to create and edit:
+
+- About Us.
+- Contact.
+- Privacy Policy.
+- Terms and Conditions.
+- Delivery Policy.
+- Cancellation Policy.
+- Other custom business pages.
+
+Support rich text, photographs and structured sections.
+
+C. NAVIGATION MANAGEMENT
+
+Allow the owner to:
+
+- Add navigation links.
+- Rename links.
+- Reorder navigation.
+- Add custom pages.
+- Hide links.
+- Update destinations.
+
+D. FOOTER MANAGEMENT
+
+Allow the owner to edit:
+
+- Footer logo.
+- Description.
+- Contact information.
+- Navigation links.
+- Social media.
+- Business hours.
+- Policies.
+- Copyright text.
+
+E. WEBSITE THEME MANAGEMENT
+
+Allow controlled configuration of:
+
+- Brand logo.
+- Favicon.
+- Approved colour palette.
+- Typography presets.
+- Button appearance.
+- Announcement bar.
+- Website-wide promotional banners.
+
+Preserve the premium original design when settings are changed.
+
+Use safe predefined design controls rather than unrestricted CSS or code injection.
+
+==================================================
+12. COMPLETE PHOTO AND VIDEO MANAGEMENT
+==================================================
+
+Create a central Media Library.
+
+Route:
+
+/admin/media
+
+Allow the owner to upload and manage:
+
+- Cake photographs.
+- Pizza photographs.
+- Bakery photographs.
+- Pastry photographs.
+- Product photographs.
+- Homepage hero images.
+- Promotional images.
+- Store interior images.
+- Store exterior images.
+- Original videos.
+- Gallery photographs.
+- Brand assets.
+
+Features:
+
+- Multiple file uploads.
+- Image previews.
+- Video previews.
+- Upload progress.
+- Search.
+- File categories.
+- Tags.
+- Alt text.
+- Image descriptions.
+- Cropping.
+- Resizing.
+- Image optimisation.
+- Responsive variants.
+- Reordering.
+- Replace image.
+- Delete with dependency checks.
+- Usage/reference tracking.
+
+Provide visual warnings before deleting media already used on a live page or product.
+
+Never use AI-generated images or unrelated stock photography.
+
+Use authorised genuine business photographs.
+
+STATIC ASSET MANAGEMENT:
+
+Keep initial authorised project assets organised under /public/assets/.
+
+FUTURE ADMIN UPLOADS:
+
+Use Supabase Storage and database references.
+
+Do not store newly uploaded files in the temporary deployment filesystem.
+
+Keep original source files where appropriate.
+
+Do not materially alter the appearance of actual products.
+
+==================================================
+13. GALLERY MANAGEMENT
+==================================================
+
+Create:
+
+/admin/gallery
+
+The owner can:
+
+- Upload gallery images.
+- Upload authorised video files.
+- Add captions.
+- Add categories.
+- Add image descriptions.
+- Reorder gallery entries.
+- Feature selected images.
+- Publish/unpublish.
+- Archive.
+- Create gallery collections.
+
+The public website gallery must automatically reflect published changes.
+
+Use efficient pagination and lazy loading.
+
+Keep the gallery visually premium and responsive.
+
+==================================================
+14. PROMOTIONS AND COUPON MANAGEMENT
+==================================================
+
+Create:
+
+/admin/promotions
+
+Support:
+
+- Percentage discount.
+- Fixed discount.
+- Coupon codes.
+- Minimum order value.
+- Maximum discount.
+- Selected product restrictions.
+- Selected categories.
+- Usage limits.
+- Expiry dates.
+- Active/inactive.
+- Campaign banners.
+
+Allow the owner to create and modify promotions independently.
+
+Validate coupons on the server.
+
+Prevent customers from manipulating discounts through frontend requests.
+
+==================================================
+15. DELIVERY, TAKEAWAY AND DINE-IN CONFIGURATION
+==================================================
+
+Create:
+
+/admin/fulfilment
+
+The owner can manage:
+
+HOME DELIVERY:
+- Serviceable areas.
+- PIN codes.
+- Delivery charges.
+- Minimum order amount.
+- Available hours.
+- Delivery slots.
+- Order capacity.
+- Temporary suspension.
+
+TAKEAWAY:
+- Pickup hours.
+- Preparation time.
+- Available pickup slots.
+- Packaging settings.
+- Temporary suspension.
+
+DINE-IN:
+- Table creation.
+- Table numbering.
+- Table availability.
+- QR code generation.
+- Table order tracking.
+- Table activation/deactivation.
+
+Allow fulfilment policies to be modified without code changes.
+
+==================================================
+16. BUSINESS SETTINGS
+==================================================
+
+Create a comprehensive settings centre.
+
+Route:
+
+/admin/settings
+
+Organise settings into sections.
+
+GENERAL:
+- Business name.
+- Logo.
+- Business description.
+- Phone.
+- Address.
+- Maps location.
+- Social media links.
+
+OPERATING HOURS:
+- Daily timings.
+- Breaks.
+- Holiday closures.
+- Temporary closures.
+
+CONTACT:
+- Primary phone.
+- WhatsApp number.
+- Contact email if configured.
+
+PAYMENT:
+- UPI configuration.
+- Payment QR.
+- Advance percentage.
+- Fixed advance.
+- Payment methods.
+- Payment verification rules.
+
+STORE:
+- Currency.
+- Tax settings.
+- Minimum order.
+- Delivery charges.
+- Pickup options.
+- Dine-in availability.
+
+SEO:
+- Default metadata.
+- Business structured data.
+- Open Graph assets.
+- Sitemap configuration.
+
+Every setting must have proper validation and clear explanatory labels.
+
+==================================================
+17. ANALYTICS AND BUSINESS REPORTS
+==================================================
+
+Create:
+
+/admin/analytics
+/admin/reports
+
+Include:
+
+- Daily sales.
+- Weekly sales.
+- Monthly sales.
+- Total revenue.
+- Advance payments received.
+- Remaining balances.
+- Pending payments.
+- Average order value.
+- Product performance.
+- Category performance.
+- Inventory movement.
+- Bestselling items.
+- Customer retention.
+- Repeat customer statistics.
+- Fulfilment performance.
+
+Use interactive charts where useful.
+
+Provide date filters.
+
+Allow authorised CSV exports.
+
+Differentiate completed revenue, pending payments, refunds, and outstanding balances accurately.
+
+Never label an unverified payment as received revenue.
+
+==================================================
+18. NOTIFICATIONS AND ACTIVITY CENTRE
+==================================================
+
+Create an internal admin notification centre.
+
+Display relevant events:
+
+- New order.
+- Payment submitted.
+- Payment verification required.
+- Low stock.
+- Out of stock.
+- Custom cake enquiry.
+- Order cancellation.
+- Customer support request.
+- Website content awaiting publication.
+
+Support read/unread states.
+
+Notifications must be permission-aware.
+
+Use website-based/admin notifications, not SMS.
+
+WhatsApp and phone should remain optional customer communication methods.
+
+==================================================
+19. AUDIT LOGS AND SECURITY CENTRE
+==================================================
+
+Create:
+
+/admin/security
+/admin/activity-logs
+
+Track important activities:
+
+- Successful logins.
+- Failed login attempts.
+- MFA changes.
+- Staff invitations.
+- Permission changes.
+- Product price changes.
+- Inventory adjustments.
+- Order changes.
+- Payment verification.
+- Payment rejection.
+- UPI detail changes.
+- QR code changes.
+- Customer data exports.
+- Website publishing.
+- Business setting changes.
+
+Each log should record:
+
+- Actor.
+- Action.
+- Entity.
+- Timestamp.
+- Relevant safe metadata.
+- Outcome.
+
+Use append-only audit logging where feasible.
+
+Protect logs from normal staff modification and deletion.
+
+Build an owner-accessible session management section.
+
+Allow the owner to revoke active staff sessions.
+
+==================================================
+20. DATABASE SECURITY AND DEFENCE IN DEPTH
+==================================================
+
+Treat customer records, payments and business operations as sensitive information.
+
+Enforce:
+
+1. Supabase Row Level Security on all relevant tables.
+2. Server-side authentication and authorisation.
+3. Least-privilege access.
+4. Secure server-side handling of privileged operations.
+5. Strong input validation.
+6. Parameterised database queries.
+7. Rate limiting.
+8. CSRF protection where applicable.
+9. XSS prevention.
+10. Secure file upload validation.
+11. Private storage for customer payment evidence.
+12. Short-lived signed URLs for private media.
+13. Secure HTTP headers and Content Security Policy.
+14. Secure cookie configuration.
+15. Protection against insecure direct object references.
+16. Transactional handling of sensitive financial and inventory operations.
+17. Database backups and recovery procedures.
+
+Never expose:
+
+- Supabase service-role keys.
+- Razorpay secrets.
+- Private environment variables.
+- Admin tokens.
+- Customer payment evidence through public URLs.
+- Unauthorised internal records.
+
+Do not place privileged database operations in client-side code.
+
+Do not allow normal admin users to edit SQL, environment variables, arbitrary executable code or application security policies.
+
+Do not create unrestricted database access through the admin interface.
+
+Store payment evidence privately.
+
+Avoid storing card details or CVV information.
+
+Use the configured payment provider's secure payment flow.
+
+Create security documentation and a tested backup/restore procedure.
+
+Acknowledge that no system guarantees absolute immunity from data leaks. Implement defence in depth and document security limitations.
+
+==================================================
+21. ADMIN USER EXPERIENCE AND EASE OF MANAGEMENT
+==================================================
+
+The owner may not be a technical person.
+
+Therefore, the admin panel must be exceptionally user-friendly.
+
+Use:
+
+- Simple language.
+- Clear module names.
+- Contextual tooltips.
+- Helpful empty states.
+- Guided setup.
+- Clear validation.
+- Friendly error messages.
+- Success confirmations.
+- Searchable tables.
+- Useful filters.
+- Consistent buttons.
+- Responsive forms.
+- Bulk operations with previews.
+- Confirmation before destructive actions.
+- Undo/archive where safe.
+- Autosave drafts where appropriate.
+
+Avoid overcrowding.
+
+Use a clean information hierarchy.
+
+Provide a dashboard quick-start checklist for first-time owners.
+
+Include an admin help section explaining how to:
+
+- Add a product.
+- Upload a cake design.
+- Change prices.
+- Update homepage photos.
+- Manage inventory.
+- Verify payments.
+- Process orders.
+- Create coupons.
+- Update opening hours.
+- Manage staff.
+
+Owner should be able to operate the business without technical support for routine activities.
+
+==================================================
+22. DATA BACKUP AND RECOVERY
+==================================================
+
+Create a backup and recovery strategy.
+
+Include:
+
+- Database backup configuration.
+- Recovery documentation.
+- Media storage protection.
+- Data export.
+- Backup status information where available.
+- Restore testing instructions.
+- Recovery of accidentally archived products and content where possible.
+
+Do not implement a fake backup button that merely displays success.
+
+Only display backup success when the underlying backup process is verified.
+
+Require explicit confirmation for sensitive restore operations.
+
+==================================================
+23. FINAL ADMIN ROUTE STRUCTURE
+==================================================
+
+/admin/login
+/admin
+/admin/orders
+/admin/payments
+/admin/products
+/admin/categories
+/admin/cakes
+/admin/inventory
+/admin/customers
+/admin/promotions
+/admin/fulfilment
+/admin/tables
+/admin/media
+/admin/gallery
+/admin/website
+/admin/website/homepage
+/admin/website/pages
+/admin/website/navigation
+/admin/website/footer
+/admin/website/seo
+/admin/analytics
+/admin/reports
+/admin/staff
+/admin/security
+/admin/activity-logs
+/admin/settings
+/admin/help
+
+Use appropriate permissions for every route.
+
+==================================================
+24. END-TO-END TESTING
+==================================================
+
+Test actual backend functionality, not just the dashboard visuals.
+
+Test:
+
+1. Owner login with MFA.
+2. Unauthenticated access to protected routes.
+3. Staff invitations.
+4. Staff role restrictions.
+5. Permission escalation attempts.
+6. Payment verification access.
+7. Customer data restrictions.
+8. Product creation.
+9. Product price changes.
+10. Category management.
+11. Cake design uploads.
+12. Media upload and replacement.
+13. Homepage content publishing.
+14. Gallery management.
+15. Inventory adjustment.
+16. Stock reservation.
+17. Order management.
+18. CRM records.
+19. Coupon validation.
+20. Delivery configuration.
+21. Table QR management.
+22. Reports and CSV permissions.
+23. Audit log generation.
+24. Backup and recovery procedures.
+25. Mobile dashboard usability.
+26. Expired sessions.
+27. Revoked sessions.
+28. Failed upload handling.
+29. Database RLS tests.
+30. Protection against direct API access without appropriate permissions.
+
+Run:
+- TypeScript checking.
+- ESLint.
+- Production build.
+- Database migration validation.
+- Security tests.
+- Important workflow tests.
+
+Fix all discovered issues.
+
+Do not mark an unfinished or unconfigured feature as production-ready.
+
+==================================================
+FINAL ACCEPTANCE CRITERIA
+==================================================
+
+Deliver a complete Business Management System integrated with the existing Lovey's website.
+
+The owner must be able to independently manage:
+
+- Every product.
+- Every category.
+- Every price.
+- Every cake design.
+- Every product image.
+- Every video.
+- Every gallery entry.
+- Every homepage section.
+- Every public website page.
+- Website navigation.
+- Website footer.
+- SEO settings.
+- Inventory.
+- Orders.
+- Payments and payment verification.
+- Customers and CRM.
+- Coupons and promotions.
+- Delivery.
+- Pickup.
+- Dine-in tables.
+- Reports.
+- Staff access.
+- Business settings.
+
+Routine business operations must not require contacting the original developer.
+
+Keep security-sensitive infrastructure and privileged technical configuration outside the ordinary business-management interface.
+
+Build the system as a coherent, easy-to-use, highly secure and maintainable business platform.
+
+FIRST inspect the existing codebase, identify reusable modules and gaps, then implement the work in logical stages.
+
+Do not stop after presenting a design or development plan. Implement and test the actual functionality.
+
+The final result must be professional enough to hand over directly to the business owner.

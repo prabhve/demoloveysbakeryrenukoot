@@ -1,0 +1,936 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == "prabhve5@gmail.com";
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidTimestampOrIso(val) {
+      return val is timestamp || (val is string && val.size() >= 10 && val.size() <= 40);
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidAdminProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'role', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.role is string && data.role.size() <= 32 && (data.role == 'owner' || data.role == 'manager' || data.role == 'staff') &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidBusinessSettings(data) {
+      return data.keys().hasAll([
+          'businessName', 'hindiName', 'tagline', 'phone', 'whatsapp', 'address',
+          'openingHours', 'holidayNotice', 'announcementText', 'ourStoryContent',
+          'deliveryEnabled', 'pickupEnabled', 'dineInEnabled',
+          'codEnabled', 'payAtStoreEnabled', 'onlinePaymentEnabled', 'taxPercentage',
+          'packagingCharge', 'minDeliveryOrder', 'baseDeliveryFee', 'freeDeliveryThreshold'
+        ]) &&
+        data.keys().hasOnly([
+          'businessName', 'hindiName', 'tagline', 'phone', 'whatsapp', 'address',
+          'openingHours', 'holidayNotice', 'announcementText', 'announcementTextHi',
+          'announcementActive', 'heroBannerUrl', 'googleMapsUrl', 'facebookUrl',
+          'ourStoryContent', 'smsNotificationsEnabled', 'deliveryEnabled',
+          'pickupEnabled', 'dineInEnabled', 'codEnabled', 'payAtStoreEnabled',
+          'onlinePaymentEnabled', 'taxPercentage', 'packagingCharge',
+          'minDeliveryOrder', 'baseDeliveryFee', 'freeDeliveryThreshold', 'updatedAt'
+        ]) &&
+        data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120 &&
+        data.hindiName is string && data.hindiName.size() <= 120 &&
+        data.tagline is string && data.tagline.size() <= 160 &&
+        data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 32 &&
+        data.whatsapp is string && data.whatsapp.size() <= 32 &&
+        data.address is string && data.address.size() >= 5 && data.address.size() <= 300 &&
+        data.openingHours is string && data.openingHours.size() >= 3 && data.openingHours.size() <= 160 &&
+        data.holidayNotice is string && data.holidayNotice.size() <= 240 &&
+        data.announcementText is string && data.announcementText.size() <= 240 &&
+        data.ourStoryContent is string && data.ourStoryContent.size() <= 5000 &&
+        data.deliveryEnabled is bool &&
+        data.pickupEnabled is bool &&
+        data.dineInEnabled is bool &&
+        data.codEnabled is bool &&
+        data.payAtStoreEnabled is bool &&
+        data.onlinePaymentEnabled is bool &&
+        data.taxPercentage is number && data.taxPercentage >= 0 && data.taxPercentage <= 50 &&
+        data.packagingCharge is number && data.packagingCharge >= 0 && data.packagingCharge <= 5000 &&
+        data.minDeliveryOrder is number && data.minDeliveryOrder >= 0 && data.minDeliveryOrder <= 50000 &&
+        data.baseDeliveryFee is number && data.baseDeliveryFee >= 0 && data.baseDeliveryFee <= 5000 &&
+        data.freeDeliveryThreshold is number && data.freeDeliveryThreshold >= 0 && data.freeDeliveryThreshold <= 100000;
+    }
+
+    function isValidPaymentSettings(data) {
+      return data.keys().hasAll([
+          'upiId', 'payeeDisplayName', 'qrCodeImageUrl', 'paymentInstructions',
+          'advanceType', 'advancePercentage', 'fixedAdvanceAmount', 'minAdvanceAmount',
+          'maxAdvanceAmount', 'paymentDeadlineMinutes', 'remainingBalancePolicy',
+          'mandatoryForDelivery', 'mandatoryForPickup', 'useSeparateRulesByOrderType',
+          'pickupAdvanceType', 'pickupAdvancePercentage', 'pickupFixedAdvanceAmount',
+          'requireAdvanceForQuotation', 'verificationPhone', 'verificationWhatsapp'
+        ]) &&
+        data.keys().hasOnly([
+          'upiId', 'payeeDisplayName', 'qrCodeImageUrl', 'paymentInstructions',
+          'advanceType', 'advancePercentage', 'fixedAdvanceAmount', 'minAdvanceAmount',
+          'maxAdvanceAmount', 'paymentDeadlineMinutes', 'remainingBalancePolicy',
+          'mandatoryForDelivery', 'mandatoryForPickup', 'useSeparateRulesByOrderType',
+          'pickupAdvanceType', 'pickupAdvancePercentage', 'pickupFixedAdvanceAmount',
+          'requireAdvanceForQuotation', 'verificationPhone', 'verificationWhatsapp', 'updatedAt'
+        ]) &&
+        data.upiId is string && data.upiId.size() <= 120 &&
+        data.payeeDisplayName is string && data.payeeDisplayName.size() <= 120 &&
+        data.qrCodeImageUrl is string && data.qrCodeImageUrl.size() <= 500000 &&
+        data.paymentInstructions is string && data.paymentInstructions.size() <= 2000 &&
+        data.advanceType is string && (data.advanceType == 'percentage' || data.advanceType == 'fixed') &&
+        data.advancePercentage is number && data.advancePercentage >= 1 && data.advancePercentage <= 100 &&
+        data.fixedAdvanceAmount is number && data.fixedAdvanceAmount >= 0 && data.fixedAdvanceAmount <= 100000 &&
+        data.minAdvanceAmount is number && data.minAdvanceAmount >= 0 && data.minAdvanceAmount <= 100000 &&
+        data.maxAdvanceAmount is number && data.maxAdvanceAmount >= 0 && data.maxAdvanceAmount <= 500000 &&
+        data.paymentDeadlineMinutes is number && data.paymentDeadlineMinutes >= 5 && data.paymentDeadlineMinutes <= 10080 &&
+        data.remainingBalancePolicy is string && data.remainingBalancePolicy.size() <= 1000 &&
+        data.mandatoryForDelivery is bool &&
+        data.mandatoryForPickup is bool &&
+        data.useSeparateRulesByOrderType is bool &&
+        data.pickupAdvanceType is string && (data.pickupAdvanceType == 'percentage' || data.pickupAdvanceType == 'fixed') &&
+        data.pickupAdvancePercentage is number && data.pickupAdvancePercentage >= 1 && data.pickupAdvancePercentage <= 100 &&
+        data.pickupFixedAdvanceAmount is number && data.pickupFixedAdvanceAmount >= 0 && data.pickupFixedAdvanceAmount <= 100000 &&
+        data.requireAdvanceForQuotation is bool &&
+        data.verificationPhone is string && data.verificationPhone.size() <= 32 &&
+        data.verificationWhatsapp is string && data.verificationWhatsapp.size() <= 32;
+    }
+
+    function isValidOrderPaymentStatus(st) {
+      return st is string && (
+        st == 'NOT_REQUIRED' ||
+        st == 'AWAITING_PAYMENT' ||
+        st == 'CONTACT_PENDING' ||
+        st == 'PAYMENT_SUBMITTED' ||
+        st == 'VERIFIED' ||
+        st == 'REJECTED' ||
+        st == 'RESUBMISSION_REQUESTED' ||
+        st == 'EXPIRED'
+      );
+    }
+
+    function isValidOrderPayment(data) {
+      return data.keys().hasAll([
+          'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'fulfilmentType', 'totalOrderAmount', 'advanceRequired',
+          'requiredAdvanceAmount', 'submittedAmount', 'verifiedAdvanceAmount',
+          'remainingBalanceAmount', 'paymentStatus', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'fulfilmentType', 'totalOrderAmount', 'advanceRequired',
+          'requiredAdvanceAmount', 'submittedAmount', 'verifiedAdvanceAmount',
+          'remainingBalanceAmount', 'paymentStatus', 'latestSubmissionId',
+          'latestUtrNumber', 'latestScreenshotUrl', 'latestSubmittedAt',
+          'rejectionReason', 'internalAdminNote', 'verifiedByEmail',
+          'verifiedAt', 'paymentDeadlineIso', 'createdAt', 'updatedAt'
+        ]) &&
+        data.orderNumber is string && data.orderNumber.size() >= 3 && data.orderNumber.size() <= 40 && data.orderNumber.matches('^[A-Z0-9\\-]+$') &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.customerPhone is string && data.customerPhone.size() >= 5 && data.customerPhone.size() <= 32 &&
+        data.fulfilmentType is string && (
+          data.fulfilmentType == 'delivery' || data.fulfilmentType == 'pickup' || data.fulfilmentType == 'dine_in'
+        ) &&
+        data.totalOrderAmount is number && data.totalOrderAmount >= 0 && data.totalOrderAmount <= 1000000 &&
+        data.advanceRequired is bool &&
+        data.requiredAdvanceAmount is number && data.requiredAdvanceAmount >= 0 && data.requiredAdvanceAmount <= 1000000 &&
+        data.submittedAmount is number && data.submittedAmount >= 0 && data.submittedAmount <= 1000000 &&
+        data.verifiedAdvanceAmount is number && data.verifiedAdvanceAmount >= 0 && data.verifiedAdvanceAmount <= 1000000 &&
+        data.remainingBalanceAmount is number && data.remainingBalanceAmount >= 0 && data.remainingBalanceAmount <= 1000000 &&
+        isValidOrderPaymentStatus(data.paymentStatus) &&
+        isValidTimestampOrIso(data.createdAt) &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidPaymentSubmission(data) {
+      return data.keys().hasAll([
+          'id', 'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'fulfilmentType', 'totalOrderAmount', 'requiredAdvanceAmount',
+          'amountPaid', 'utrNumber', 'screenshotUrl', 'screenshotMimeType',
+          'paymentDateTime', 'verificationStatus', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'fulfilmentType', 'totalOrderAmount', 'requiredAdvanceAmount',
+          'amountPaid', 'utrNumber', 'screenshotUrl', 'screenshotMimeType',
+          'paymentDateTime', 'customerNote', 'verificationStatus',
+          'rejectionReason', 'adminNote', 'reviewedByEmail', 'reviewedAt', 'createdAt'
+        ]) &&
+        data.id is string && data.id.size() >= 3 && data.id.size() <= 80 &&
+        data.orderNumber is string && data.orderNumber.size() >= 3 && data.orderNumber.size() <= 40 && data.orderNumber.matches('^[A-Z0-9\\-]+$') &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.customerPhone is string && data.customerPhone.size() >= 5 && data.customerPhone.size() <= 32 &&
+        data.fulfilmentType is string && (
+          data.fulfilmentType == 'delivery' || data.fulfilmentType == 'pickup' || data.fulfilmentType == 'dine_in'
+        ) &&
+        data.totalOrderAmount is number && data.totalOrderAmount >= 0 && data.totalOrderAmount <= 1000000 &&
+        data.requiredAdvanceAmount is number && data.requiredAdvanceAmount >= 0 && data.requiredAdvanceAmount <= 1000000 &&
+        data.amountPaid is number && data.amountPaid >= 1 && data.amountPaid <= 1000000 &&
+        data.utrNumber is string && data.utrNumber.size() >= 6 && data.utrNumber.size() <= 60 &&
+        data.screenshotUrl is string && data.screenshotUrl.size() >= 10 && data.screenshotUrl.size() <= 500000 &&
+        data.screenshotMimeType is string && (
+          data.screenshotMimeType == 'image/jpeg' ||
+          data.screenshotMimeType == 'image/jpg' ||
+          data.screenshotMimeType == 'image/png' ||
+          data.screenshotMimeType == 'image/webp'
+        ) &&
+        data.paymentDateTime is string && data.paymentDateTime.size() >= 4 && data.paymentDateTime.size() <= 60 &&
+        data.verificationStatus is string && (
+          data.verificationStatus == 'SUBMITTED' ||
+          data.verificationStatus == 'VERIFIED' ||
+          data.verificationStatus == 'REJECTED' ||
+          data.verificationStatus == 'RESUBMISSION_REQUESTED'
+        ) &&
+        isValidTimestampOrIso(data.createdAt);
+    }
+
+    function isValidPaymentVerificationHistory(data) {
+      return data.keys().hasAll([
+          'id', 'orderNumber', 'action', 'actorRole', 'actorIdentifier', 'note', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'orderNumber', 'submissionId', 'action', 'actorRole',
+          'actorIdentifier', 'amount', 'utrNumber', 'note', 'createdAt'
+        ]) &&
+        data.id is string && data.id.size() >= 3 && data.id.size() <= 80 &&
+        data.orderNumber is string && data.orderNumber.size() >= 3 && data.orderNumber.size() <= 40 && data.orderNumber.matches('^[A-Z0-9\\-]+$') &&
+        data.action is string && data.action.size() >= 3 && data.action.size() <= 50 &&
+        data.actorRole is string && (
+          data.actorRole == 'customer' || data.actorRole == 'admin' || data.actorRole == 'system'
+        ) &&
+        data.actorIdentifier is string && data.actorIdentifier.size() >= 1 && data.actorIdentifier.size() <= 200 &&
+        data.note is string && data.note.size() <= 1000 &&
+        isValidTimestampOrIso(data.createdAt);
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'slug', 'description', 'imageUrl', 'isActive']) &&
+        data.keys().hasOnly([
+          'id', 'name', 'hindiName', 'nameHi', 'slug', 'description',
+          'imageUrl', 'sortOrder', 'displayOrder', 'isActive', 'createdAt', 'updatedAt'
+        ]) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 80 && data.slug.matches('^[a-z0-9\\-]+$') &&
+        data.description is string && data.description.size() <= 400 &&
+        data.imageUrl is string && data.imageUrl.size() <= 1000 &&
+        data.isActive is bool;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll([
+          'name', 'slug', 'categoryId', 'imageUrl', 'variantsSummary',
+          'addonsSummary', 'isAvailable', 'isBestseller', 'isEggless'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'hindiName', 'nameHi', 'slug', 'categoryId', 'categorySlug',
+          'categoryName', 'description', 'shortDescription', 'fullDescription',
+          'ingredientsSummary', 'allergenInfo', 'price', 'basePrice', 'originalPrice',
+          'compareAtPrice', 'discountLabel', 'taxPercentage', 'imageUrl',
+          'variantsSummary', 'flavorsSummary', 'frostingsSummary', 'addonsSummary',
+          'isAvailable', 'isPublished', 'isBestseller', 'isFeatured', 'isNewArrival',
+          'isEggless', 'containsEgg', 'isJainFriendly', 'spiceLevel',
+          'sameDayAvailable', 'advanceNoticeHours', 'stockQuantity', 'reservedStock',
+          'minStockThreshold', 'isArchived', 'seoTitle', 'seoDescription', 'prepTimeMinutes',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 140 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 140 && data.slug.matches('^[a-z0-9\\-]+$') &&
+        data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 80 &&
+        data.imageUrl is string && data.imageUrl.size() <= 500000 &&
+        data.variantsSummary is string && data.variantsSummary.size() <= 600 &&
+        data.addonsSummary is string && data.addonsSummary.size() <= 600 &&
+        data.isAvailable is bool &&
+        data.isBestseller is bool &&
+        data.isEggless is bool;
+    }
+
+    function isValidCakeDesign(data) {
+      return data.keys().hasAll([
+          'description', 'imageUrl', 'isQuotationBased', 'isActive'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'title', 'slug', 'theme', 'occasion', 'description',
+          'imageUrl', 'basePrice', 'startingPrice', 'minWeightKg', 'maxWeightKg',
+          'availableFlavours', 'leadTimeHours', 'decorationCharge',
+          'isQuotationBased', 'weightsAllowed', 'flavoursAllowed',
+          'fillingsAllowed', 'frostingsAllowed', 'prepTimeHours',
+          'advanceBookingHours', 'isActive', 'createdAt', 'updatedAt'
+        ]) &&
+        data.description is string && data.description.size() <= 800 &&
+        data.imageUrl is string && data.imageUrl.size() <= 500000 &&
+        data.isQuotationBased is bool &&
+        data.isActive is bool;
+    }
+
+    function isValidMediaAsset(data) {
+      return data.keys().hasAll(['title', 'altText', 'aspectRatio']) &&
+        data.keys().hasOnly([
+          'id', 'title', 'altText', 'category', 'section', 'mediaType',
+          'url', 'imageUrl', 'aspectRatio', 'sortOrder', 'displayOrder',
+          'isVisible', 'isFeatured', 'isArchived', 'tagsSummary', 'description',
+          'collectionName', 'createdAt', 'updatedAt'
+        ]) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+        data.altText is string && data.altText.size() <= 240 &&
+        data.aspectRatio is string && data.aspectRatio.size() <= 20;
+    }
+
+    function isValidCoupon(data) {
+      return data.keys().hasAll([
+          'code', 'discountType', 'discountValue', 'minCartValue',
+          'maxUsage', 'usedCount', 'isActive'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'code', 'description', 'discountType', 'discountValue',
+          'minCartValue', 'maxDiscountAmount', 'applicableCategorySlug', 'campaignBannerText',
+          'maxUsage', 'usedCount', 'expiryDate',
+          'isActive', 'createdAt', 'updatedAt'
+        ]) &&
+        data.code is string && data.code.size() >= 2 && data.code.size() <= 32 && data.code.matches('^[A-Z0-9_\\-]+$') &&
+        data.discountType is string && data.discountType.size() <= 20 && (
+          data.discountType == 'percentage' || data.discountType == 'fixed' || data.discountType == 'flat'
+        ) &&
+        data.discountValue is number && data.discountValue >= 0 && data.discountValue <= 100000 &&
+        data.minCartValue is number && data.minCartValue >= 0 && data.minCartValue <= 500000 &&
+        data.maxUsage is number && data.maxUsage >= 1 && data.maxUsage <= 1000000 &&
+        data.usedCount is number && data.usedCount >= 0 && data.usedCount <= 1000000 &&
+        data.isActive is bool;
+    }
+
+    function isValidDeliveryZone(data) {
+      return data.keys().hasAll([
+          'pinCode', 'localityName', 'deliveryFee', 'minOrderAmount', 'isServiceable'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'pinCode', 'localityName', 'deliveryFee', 'minOrderAmount',
+          'estimatedMinutes', 'estimatedTime', 'isServiceable', 'updatedAt'
+        ]) &&
+        data.pinCode is string && data.pinCode.size() >= 4 && data.pinCode.size() <= 12 &&
+        data.localityName is string && data.localityName.size() >= 1 && data.localityName.size() <= 120 &&
+        data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 5000 &&
+        data.minOrderAmount is number && data.minOrderAmount >= 0 && data.minOrderAmount <= 100000 &&
+        data.isServiceable is bool;
+    }
+
+    function isValidDiningTable(data) {
+      return data.keys().hasAll([
+          'tableNumber', 'label', 'capacity', 'isActive', 'isOccupied', 'qrUrl'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'tableNumber', 'label', 'capacity', 'isActive', 'isOccupied', 'qrUrl', 'updatedAt'
+        ]) &&
+        data.tableNumber is string && data.tableNumber.size() >= 1 && data.tableNumber.size() <= 20 &&
+        data.label is string && data.label.size() >= 1 && data.label.size() <= 80 &&
+        data.capacity is number && data.capacity >= 1 && data.capacity <= 50 &&
+        data.isActive is bool &&
+        data.isOccupied is bool &&
+        data.qrUrl is string && data.qrUrl.size() <= 300;
+    }
+
+    function isValidOrderStatus(status) {
+      return status is string && status.size() >= 1 && status.size() <= 40 && (
+        status == 'new_order' ||
+        status == 'awaiting_advance_payment' ||
+        status == 'AWAITING_PAYMENT_VERIFICATION' ||
+        status == 'payment_rejected' ||
+        status == 'resubmission_requested' ||
+        status == 'confirmed' ||
+        status == 'preparing' ||
+        status == 'ready_for_pickup' ||
+        status == 'out_for_delivery' ||
+        status == 'delivered' ||
+        status == 'cancelled' ||
+        status == 'awaiting_quote' ||
+        status == 'Order Placed' ||
+        status == 'Awaiting Confirmation' ||
+        status == 'Confirmed' ||
+        status == 'Preparing' ||
+        status == 'Ready for Pickup' ||
+        status == 'Out for Delivery' ||
+        status == 'Delivered' ||
+        status == 'Completed' ||
+        status == 'Cancelled'
+      );
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'fulfilmentType', 'orderStatus', 'paymentMethod', 'paymentStatus',
+          'subtotal', 'discountAmount', 'deliveryFee', 'packagingCharge',
+          'taxAmount', 'totalAmount', 'itemsSummary', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'customerWhatsapp', 'customerEmail', 'fulfilmentType', 'orderStatus',
+          'status', 'paymentMethod', 'paymentStatus', 'advanceRequired',
+          'requiredAdvanceAmount', 'submittedAdvanceAmount', 'verifiedAdvanceAmount',
+          'remainingBalanceAmount', 'paymentDeadlineIso', 'latestSubmissionId',
+          'paymentRejectionReason', 'deliveryAddress',
+          'locality', 'landmark', 'pinCode', 'pickupDate', 'pickupTimeSlot',
+          'pickupSlot', 'tableNumber', 'specialInstructions', 'orderNotes',
+          'couponCode', 'subtotal', 'discountAmount', 'deliveryFee',
+          'packagingCharge', 'taxAmount', 'totalAmount', 'quotedPrice',
+          'itemsSummary', 'customCakeDetails', 'customCakeSpecs',
+          'adminNotes', 'stockRestored', 'createdAt', 'updatedAt'
+        ]) &&
+        data.orderNumber is string && data.orderNumber.size() >= 3 && data.orderNumber.size() <= 40 && data.orderNumber.matches('^[A-Z0-9\\-]+$') &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.customerPhone is string && data.customerPhone.size() >= 5 && data.customerPhone.size() <= 24 &&
+        data.fulfilmentType is string && data.fulfilmentType.size() <= 20 && (
+          data.fulfilmentType == 'delivery' || data.fulfilmentType == 'pickup' || data.fulfilmentType == 'dine_in'
+        ) &&
+        isValidOrderStatus(data.orderStatus) &&
+        data.paymentMethod is string && data.paymentMethod.size() <= 30 &&
+        data.paymentStatus is string && data.paymentStatus.size() <= 40 &&
+        data.itemsSummary is string && data.itemsSummary.size() >= 1 && data.itemsSummary.size() <= 4000 &&
+        data.subtotal is number && data.subtotal >= 0 && data.subtotal <= 1000000 &&
+        data.discountAmount is number && data.discountAmount >= 0 && data.discountAmount <= 1000000 &&
+        data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 50000 &&
+        data.packagingCharge is number && data.packagingCharge >= 0 && data.packagingCharge <= 50000 &&
+        data.taxAmount is number && data.taxAmount >= 0 && data.taxAmount <= 500000 &&
+        data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 1000000 &&
+        isValidTimestampOrIso(data.createdAt) &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidOrderSummary(data) {
+      return data.keys().hasAll([
+          'orderNumber', 'fulfilmentType', 'orderStatus', 'paymentMethod',
+          'paymentStatus', 'totalAmount', 'itemsSummary', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderNumber', 'userId', 'fulfilmentType', 'orderStatus', 'status',
+          'paymentMethod', 'paymentStatus', 'advanceRequired',
+          'requiredAdvanceAmount', 'submittedAdvanceAmount', 'verifiedAdvanceAmount',
+          'remainingBalanceAmount', 'paymentDeadlineIso', 'latestSubmissionId',
+          'paymentRejectionReason', 'totalAmount', 'quotedPrice',
+          'itemsSummary', 'customCakeSpecs', 'pickupDate', 'pickupTimeSlot',
+          'pickupSlot', 'tableNumber', 'timelineSummary', 'createdAt', 'updatedAt'
+        ]) &&
+        data.orderNumber is string && data.orderNumber.size() >= 3 && data.orderNumber.size() <= 40 && data.orderNumber.matches('^[A-Z0-9\\-]+$') &&
+        data.fulfilmentType is string && data.fulfilmentType.size() <= 20 && (
+          data.fulfilmentType == 'delivery' || data.fulfilmentType == 'pickup' || data.fulfilmentType == 'dine_in'
+        ) &&
+        isValidOrderStatus(data.orderStatus) &&
+        data.paymentMethod is string && data.paymentMethod.size() <= 30 &&
+        data.paymentStatus is string && data.paymentStatus.size() <= 40 &&
+        data.itemsSummary is string && data.itemsSummary.size() >= 1 && data.itemsSummary.size() <= 4000 &&
+        data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 1000000 &&
+        isValidTimestampOrIso(data.createdAt) &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidStaffMember(data) {
+      return data.keys().hasAll([
+          'id', 'email', 'name', 'roleId', 'roleName', 'permissionsSummary', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'email', 'username', 'name', 'phone', 'roleId', 'roleName', 'permissionsSummary', 'status',
+          'requirePasswordChange', 'sessionVersion', 'sessionTimeoutMinutes', 'lastLoginAt',
+          'passwordUpdatedAt', 'invitedByEmail', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 2 && data.id.size() <= 80 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.roleId is string && data.roleId.size() >= 1 && data.roleId.size() <= 60 &&
+        data.roleName is string && data.roleName.size() >= 1 && data.roleName.size() <= 80 &&
+        data.permissionsSummary is string && data.permissionsSummary.size() <= 1000 &&
+        data.status is string && (
+          data.status == 'active' || data.status == 'invited' || data.status == 'suspended' || data.status == 'revoked'
+        ) &&
+        isValidTimestampOrIso(data.createdAt) &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidRoleDefinition(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'description', 'isSystemRole', 'permissionsSummary', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'description', 'isSystemRole', 'permissionsSummary', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 60 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.description is string && data.description.size() <= 400 &&
+        data.isSystemRole is bool &&
+        data.permissionsSummary is string && data.permissionsSummary.size() <= 1000 &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidInventoryLog(data) {
+      return data.keys().hasAll([
+          'id', 'entityType', 'entityId', 'entityName', 'changeType',
+          'previousStock', 'delta', 'newStock', 'reason', 'actorEmail', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'entityType', 'entityId', 'entityName', 'variantLabel', 'changeType',
+          'previousStock', 'delta', 'newStock', 'reason', 'actorEmail', 'createdAt'
+        ]) &&
+        data.id is string && data.id.size() >= 2 && data.id.size() <= 80 &&
+        data.entityType is string && (
+          data.entityType == 'product' || data.entityType == 'variant' || data.entityType == 'ingredient'
+        ) &&
+        data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 120 &&
+        data.entityName is string && data.entityName.size() >= 1 && data.entityName.size() <= 160 &&
+        data.changeType is string && data.changeType.size() <= 40 &&
+        data.previousStock is number &&
+        data.delta is number &&
+        data.newStock is number && data.newStock >= 0 &&
+        data.reason is string && data.reason.size() <= 500 &&
+        data.actorEmail is string && data.actorEmail.size() <= 200 &&
+        isValidTimestampOrIso(data.createdAt);
+    }
+
+    function isValidRawMaterial(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'unit', 'currentStock', 'minThreshold', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'category', 'unit', 'currentStock', 'minThreshold',
+          'costPerUnit', 'supplierName', 'recipeNotes', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 80 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 30 &&
+        data.currentStock is number && data.currentStock >= 0 &&
+        data.minThreshold is number && data.minThreshold >= 0 &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidCustomerCrmNote(data) {
+      return data.keys().hasAll([
+          'id', 'customerPhone', 'customerName', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'customerPhone', 'customerName', 'customerEmail', 'savedAddresses',
+          'tagsSummary', 'segment', 'preferredFulfilment', 'whatsappOptIn',
+          'phoneCallOptIn', 'internalNotes', 'supportHistorySummary',
+          'privacyRequestStatus', 'updatedByEmail', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 80 &&
+        data.customerPhone is string && data.customerPhone.size() >= 3 && data.customerPhone.size() <= 32 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidWebsiteConfig(data) {
+      return data.keys().hasAll([
+          'id', 'heroHeading', 'heroSubparagraph', 'primaryCtaText', 'primaryCtaLink', 'status', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'heroHeading', 'heroHeadingHi', 'heroSubparagraph', 'heroImageUrl',
+          'primaryCtaText', 'primaryCtaLink', 'secondaryCtaText', 'secondaryCtaLink',
+          'promoBannerTitle', 'promoBannerSubtitle', 'promoBannerActive',
+          'sectionsOrderSummary', 'navigationLinksJson', 'footerDescription',
+          'footerCopyright', 'footerLinksJson', 'seoDefaultTitle',
+          'seoDefaultDescription', 'seoKeywords', 'ogImageUrl',
+          'themePalettePreset', 'themeTypographyPreset', 'themeButtonStyle',
+          'status', 'updatedByEmail', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 40 &&
+        data.heroHeading is string && data.heroHeading.size() >= 1 && data.heroHeading.size() <= 240 &&
+        data.heroSubparagraph is string && data.heroSubparagraph.size() <= 600 &&
+        data.primaryCtaText is string && data.primaryCtaText.size() >= 1 && data.primaryCtaText.size() <= 80 &&
+        data.primaryCtaLink is string && data.primaryCtaLink.size() >= 1 && data.primaryCtaLink.size() <= 120 &&
+        data.status is string && (data.status == 'draft' || data.status == 'published') &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidCustomPage(data) {
+      return data.keys().hasAll([
+          'id', 'slug', 'title', 'content', 'isPublished', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'slug', 'title', 'subtitle', 'content', 'heroImageUrl',
+          'seoTitle', 'seoDescription', 'isPublished', 'updatedByEmail', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 80 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 100 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+        data.content is string && data.content.size() <= 15000 &&
+        data.isPublished is bool &&
+        isValidTimestampOrIso(data.updatedAt);
+    }
+
+    function isValidAdminNotification(data) {
+      return data.keys().hasAll([
+          'id', 'category', 'title', 'message', 'isRead', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'category', 'title', 'message', 'targetRoute', 'isRead', 'createdAt'
+        ]) &&
+        data.id is string && data.id.size() >= 2 && data.id.size() <= 80 &&
+        data.category is string && data.category.size() <= 30 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+        data.message is string && data.message.size() <= 600 &&
+        data.isRead is bool &&
+        isValidTimestampOrIso(data.createdAt);
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll([
+          'id', 'actorEmail', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'outcome', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'actorEmail', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'outcome', 'createdAt'
+        ]) &&
+        data.id is string && data.id.size() >= 2 && data.id.size() <= 80 &&
+        data.actorEmail is string && data.actorEmail.size() >= 1 && data.actorEmail.size() <= 200 &&
+        data.actorRole is string && data.actorRole.size() <= 60 &&
+        data.action is string && data.action.size() <= 80 &&
+        data.entityType is string && data.entityType.size() <= 60 &&
+        data.entityId is string && data.entityId.size() <= 120 &&
+        data.summary is string && data.summary.size() <= 1000 &&
+        data.outcome is string && (
+          data.outcome == 'success' || data.outcome == 'failure' || data.outcome == 'warning'
+        ) &&
+        isValidTimestampOrIso(data.createdAt);
+    }
+
+    function isValidBackupRecord(data) {
+      return data.keys().hasAll([
+          'id', 'label', 'collectionsIncluded', 'totalDocumentsCount', 'sizeBytes', 'createdByEmail', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'label', 'collectionsIncluded', 'totalDocumentsCount', 'sizeBytes', 'checksumSha256', 'createdByEmail', 'status', 'createdAt'
+        ]) &&
+        data.id is string && data.id.size() >= 2 && data.id.size() <= 80 &&
+        data.label is string && data.label.size() >= 1 && data.label.size() <= 160 &&
+        data.collectionsIncluded is string && data.collectionsIncluded.size() <= 600 &&
+        data.totalDocumentsCount is number && data.totalDocumentsCount >= 0 &&
+        data.sizeBytes is number && data.sizeBytes >= 0 &&
+        data.createdByEmail is string && data.createdByEmail.size() <= 200 &&
+        data.status is string && (data.status == 'verified' || data.status == 'restored') &&
+        isValidTimestampOrIso(data.createdAt);
+    }
+
+    // 4. Collection Security Rules
+
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isBootstrappedAdmin() && isValidId(adminId) && isValidAdminProfile(incoming()) && incoming().uid == adminId && incoming().createdAt == request.time;
+      allow update: if isBootstrappedAdmin() && isValidId(adminId) && isValidAdminProfile(incoming()) && incoming().uid == existing().uid && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'email']);
+      allow delete: if isBootstrappedAdmin() && isValidId(adminId);
+    }
+
+    match /business_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if resource.data.businessName is string && resource.data.businessName.size() <= 120;
+      allow create: if isAdmin() && isValidId(settingId) && isValidBusinessSettings(incoming());
+      allow update: if isAdmin() && isValidId(settingId) && isValidBusinessSettings(incoming());
+      allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    match /payment_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if resource.data.upiId is string && resource.data.upiId.size() <= 120;
+      allow create: if isAdmin() && isValidId(settingId) && isValidPaymentSettings(incoming());
+      allow update: if isAdmin() && isValidId(settingId) && isValidPaymentSettings(incoming());
+      allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    match /order_payments/{orderNumber} {
+      allow get: if isValidId(orderNumber);
+      allow list: if isAdmin() && resource.data.orderNumber is string;
+
+      allow create: if isValidId(orderNumber) &&
+        isValidOrderPayment(incoming()) &&
+        incoming().orderNumber == orderNumber &&
+        incoming().verifiedAdvanceAmount == 0 &&
+        (incoming().paymentStatus == 'AWAITING_PAYMENT' || incoming().paymentStatus == 'NOT_REQUIRED') &&
+        existsAfter(/databases/$(database)/documents/orders/$(orderNumber));
+
+      allow update: if isValidId(orderNumber) &&
+        isValidOrderPayment(incoming()) &&
+        incoming().orderNumber == existing().orderNumber &&
+        incoming().totalOrderAmount == existing().totalOrderAmount &&
+        incoming().requiredAdvanceAmount == existing().requiredAdvanceAmount && (
+          isAdmin() || (
+            existing().paymentStatus != 'VERIFIED' &&
+            incoming().verifiedAdvanceAmount == existing().verifiedAdvanceAmount &&
+            (incoming().paymentStatus == 'PAYMENT_SUBMITTED' || incoming().paymentStatus == 'CONTACT_PENDING')
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(orderNumber);
+    }
+
+    match /payment_submissions/{submissionId} {
+      allow get: if isValidId(submissionId);
+      allow list: if resource.data.orderNumber is string && resource.data.orderNumber.size() <= 40;
+
+      allow create: if isValidId(submissionId) &&
+        isValidPaymentSubmission(incoming()) &&
+        incoming().id == submissionId &&
+        incoming().verificationStatus == 'SUBMITTED';
+
+      allow update: if isAdmin() &&
+        isValidId(submissionId) &&
+        isValidPaymentSubmission(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().orderNumber == existing().orderNumber;
+
+      allow delete: if isAdmin() && isValidId(submissionId);
+    }
+
+    match /payment_verification_history/{historyId} {
+      allow get: if isValidId(historyId);
+      allow list: if resource.data.orderNumber is string && resource.data.orderNumber.size() <= 40;
+
+      allow create: if isValidId(historyId) &&
+        isValidPaymentVerificationHistory(incoming()) &&
+        incoming().id == historyId && (
+          isAdmin() || (
+            incoming().actorRole == 'customer' && (
+              incoming().action == 'ORDER_CREATED_AWAITING_ADVANCE' ||
+              incoming().action == 'CUSTOMER_CONTACT_PENDING' ||
+              incoming().action == 'PAYMENT_SUBMITTED' ||
+              incoming().action == 'PAYMENT_RESUBMITTED'
+            )
+          )
+        );
+
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(historyId);
+    }
+
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if resource.data.name is string && resource.data.name.size() <= 80;
+      allow create: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming());
+      allow update: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming());
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    match /products/{productId} {
+      allow get: if isValidId(productId);
+      allow list: if resource.data.name is string && resource.data.name.size() <= 140;
+      allow create: if isAdmin() && isValidId(productId) && isValidProduct(incoming());
+      allow update: if isAdmin() && isValidId(productId) && isValidProduct(incoming());
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    match /cake_designs/{designId} {
+      allow get: if isValidId(designId);
+      allow list: if resource.data.description is string && resource.data.description.size() <= 800;
+      allow create: if isAdmin() && isValidId(designId) && isValidCakeDesign(incoming());
+      allow update: if isAdmin() && isValidId(designId) && isValidCakeDesign(incoming());
+      allow delete: if isAdmin() && isValidId(designId);
+    }
+
+    match /media_assets/{assetId} {
+      allow get: if isValidId(assetId);
+      allow list: if resource.data.title is string && resource.data.title.size() <= 140;
+      allow create: if isAdmin() && isValidId(assetId) && isValidMediaAsset(incoming());
+      allow update: if isAdmin() && isValidId(assetId) && isValidMediaAsset(incoming());
+      allow delete: if isAdmin() && isValidId(assetId);
+    }
+
+    match /coupons/{couponId} {
+      allow get: if isValidId(couponId);
+      allow list: if resource.data.code is string && resource.data.code.size() <= 32;
+      allow create: if isAdmin() && isValidId(couponId) && isValidCoupon(incoming());
+      allow update: if isAdmin() && isValidId(couponId) && isValidCoupon(incoming());
+      allow delete: if isAdmin() && isValidId(couponId);
+    }
+
+    match /delivery_zones/{zoneId} {
+      allow get: if isValidId(zoneId);
+      allow list: if resource.data.pinCode is string && resource.data.pinCode.size() <= 12;
+      allow create: if isAdmin() && isValidId(zoneId) && isValidDeliveryZone(incoming());
+      allow update: if isAdmin() && isValidId(zoneId) && isValidDeliveryZone(incoming());
+      allow delete: if isAdmin() && isValidId(zoneId);
+    }
+
+    match /dining_tables/{tableId} {
+      allow get: if isValidId(tableId);
+      allow list: if resource.data.tableNumber is string && resource.data.tableNumber.size() <= 20;
+      allow create: if isAdmin() && isValidId(tableId) && isValidDiningTable(incoming());
+      allow update: if isAdmin() && isValidId(tableId) && isValidDiningTable(incoming());
+      allow delete: if isAdmin() && isValidId(tableId);
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isValidId(orderId) &&
+        isValidOrder(incoming()) &&
+        incoming().orderNumber == orderId &&
+        incoming().orderStatus != 'confirmed' &&
+        incoming().paymentStatus != 'VERIFIED' &&
+        incoming().paymentStatus != 'advance_verified' &&
+        (
+          (request.auth == null && incoming().userId == 'guest') ||
+          (isSignedIn() && incoming().userId == request.auth.uid)
+        ) &&
+        existsAfter(/databases/$(database)/documents/order_summaries/$(incoming().orderNumber));
+
+      allow update: if isValidId(orderId) &&
+        isValidOrder(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().orderNumber == existing().orderNumber &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() || (
+            existing().orderStatus != 'confirmed' &&
+            existing().orderStatus != 'delivered' &&
+            existing().orderStatus != 'cancelled' &&
+            incoming().orderStatus == 'AWAITING_PAYMENT_VERIFICATION' &&
+            incoming().paymentStatus == 'PAYMENT_SUBMITTED' &&
+            incoming().totalAmount == existing().totalAmount
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    match /order_summaries/{orderNumber} {
+      allow get: if isValidId(orderNumber);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isValidId(orderNumber) &&
+        isValidOrderSummary(incoming()) &&
+        incoming().orderNumber == orderNumber &&
+        incoming().orderStatus != 'confirmed' &&
+        existsAfter(/databases/$(database)/documents/orders/$(orderNumber));
+
+      allow update: if isValidId(orderNumber) &&
+        isValidOrderSummary(incoming()) &&
+        incoming().orderNumber == existing().orderNumber &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() || (
+            existing().orderStatus != 'confirmed' &&
+            existing().orderStatus != 'delivered' &&
+            existing().orderStatus != 'cancelled' &&
+            (
+              incoming().orderStatus == 'AWAITING_PAYMENT_VERIFICATION' ||
+              incoming().orderStatus == 'awaiting_advance_payment'
+            ) &&
+            (
+              incoming().paymentStatus == 'PAYMENT_SUBMITTED' ||
+              incoming().paymentStatus == 'CONTACT_PENDING'
+            ) &&
+            incoming().totalAmount == existing().totalAmount
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(orderNumber);
+    }
+
+    match /staff_members/{staffId} {
+      allow get: if isSignedIn() && isValidId(staffId) && (isAdmin() || existing().email == request.auth.token.email);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.email == request.auth.token.email);
+      allow create: if isBootstrappedAdmin() && isValidId(staffId) && isValidStaffMember(incoming());
+      allow update: if isBootstrappedAdmin() && isValidId(staffId) && isValidStaffMember(incoming());
+      allow delete: if isBootstrappedAdmin() && isValidId(staffId);
+    }
+
+    match /role_definitions/{roleId} {
+      allow get: if isSignedIn() && isValidId(roleId);
+      allow list: if isSignedIn() && resource.data.id is string;
+      allow create: if isBootstrappedAdmin() && isValidId(roleId) && isValidRoleDefinition(incoming());
+      allow update: if isBootstrappedAdmin() && isValidId(roleId) && isValidRoleDefinition(incoming());
+      allow delete: if isBootstrappedAdmin() && isValidId(roleId);
+    }
+
+    match /inventory_logs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin() && resource.data.id is string;
+      allow create: if isAdmin() && isValidId(logId) && isValidInventoryLog(incoming());
+      allow update: if false;
+      allow delete: if isBootstrappedAdmin() && isValidId(logId);
+    }
+
+    match /raw_materials/{materialId} {
+      allow get: if isAdmin() && isValidId(materialId);
+      allow list: if isAdmin() && resource.data.id is string;
+      allow create: if isAdmin() && isValidId(materialId) && isValidRawMaterial(incoming());
+      allow update: if isAdmin() && isValidId(materialId) && isValidRawMaterial(incoming());
+      allow delete: if isAdmin() && isValidId(materialId);
+    }
+
+    match /customer_crm_notes/{customerId} {
+      allow get: if isAdmin() && isValidId(customerId);
+      allow list: if isAdmin() && resource.data.id is string;
+      allow create: if isAdmin() && isValidId(customerId) && isValidCustomerCrmNote(incoming());
+      allow update: if isAdmin() && isValidId(customerId) && isValidCustomerCrmNote(incoming());
+      allow delete: if isBootstrappedAdmin() && isValidId(customerId);
+    }
+
+    match /website_config/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 40;
+      allow create: if isAdmin() && isValidId(configId) && isValidWebsiteConfig(incoming());
+      allow update: if isAdmin() && isValidId(configId) && isValidWebsiteConfig(incoming());
+      allow delete: if isBootstrappedAdmin() && isValidId(configId);
+    }
+
+    match /custom_pages/{pageId} {
+      allow get: if isValidId(pageId);
+      allow list: if resource.data.slug is string && resource.data.slug.size() <= 100;
+      allow create: if isAdmin() && isValidId(pageId) && isValidCustomPage(incoming());
+      allow update: if isAdmin() && isValidId(pageId) && isValidCustomPage(incoming());
+      allow delete: if isAdmin() && isValidId(pageId);
+    }
+
+    match /admin_notifications/{notifId} {
+      allow get: if isAdmin() && isValidId(notifId);
+      allow list: if isAdmin() && resource.data.id is string;
+      allow create: if isValidId(notifId) && isValidAdminNotification(incoming());
+      allow update: if isAdmin() && isValidId(notifId) && isValidAdminNotification(incoming());
+      allow delete: if isAdmin() && isValidId(notifId);
+    }
+
+    match /audit_logs/{auditId} {
+      allow get: if isAdmin() && isValidId(auditId);
+      allow list: if isAdmin() && resource.data.id is string;
+      allow create: if isValidId(auditId) && isValidAuditLog(incoming());
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /backup_records/{backupId} {
+      allow get: if isAdmin() && isValidId(backupId);
+      allow list: if isAdmin() && resource.data.id is string;
+      allow create: if isBootstrappedAdmin() && isValidId(backupId) && isValidBackupRecord(incoming());
+      allow update: if isBootstrappedAdmin() && isValidId(backupId) && isValidBackupRecord(incoming());
+      allow delete: if isBootstrappedAdmin() && isValidId(backupId);
+    }
+  }
+}

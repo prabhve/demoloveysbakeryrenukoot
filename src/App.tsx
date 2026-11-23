@@ -665,8 +665,53 @@ export default function App() {
   });
   const [customTimeSlot, setCustomTimeSlot] = useState('5:00 PM – 7:00 PM');
   const [customRefImageUrl, setCustomRefImageUrl] = useState('');
+  const [customRefUploadError, setCustomRefUploadError] = useState<string | null>(null);
   const [customDesignNotes, setCustomDesignNotes] = useState('');
   const [customIsQuotation, setCustomIsQuotation] = useState(false);
+
+  const handleCustomCakeRefFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomRefUploadError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type.toLowerCase())) {
+      setCustomRefUploadError('Please upload a JPG, PNG, or WebP reference photograph.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setCustomRefUploadError('Reference image must be under 5 MB.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 900;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, w, h);
+        setCustomRefImageUrl(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const computedCustomCakePrice = Math.round(
     900 * customWeightMultiplier + customFlavourDelta + customFillingDelta + customFrostingDelta
@@ -724,6 +769,8 @@ export default function App() {
   const [checkoutPhone, setCheckoutPhone] = useState('');
   const [checkoutWhatsapp, setCheckoutWhatsapp] = useState('');
   const [checkoutEmail, setCheckoutEmail] = useState('');
+  const [checkoutLocality, setCheckoutLocality] = useState('Hindalco Colony, Renukoot');
+  const [checkoutLandmark, setCheckoutLandmark] = useState('');
   const [checkoutAddress, setCheckoutAddress] = useState('');
   const [checkoutPinCode, setCheckoutPinCode] = useState('231217');
   const [checkoutPickupDate, setCheckoutPickupDate] = useState(() =>
@@ -975,7 +1022,16 @@ export default function App() {
         verifiedAdvanceAmount: 0,
         remainingBalanceAmount,
         paymentDeadlineIso,
-        deliveryAddress: checkoutFulfilment === 'delivery' ? checkoutAddress.trim() : '',
+        deliveryAddress:
+          checkoutFulfilment === 'delivery'
+            ? [
+                checkoutAddress.trim(),
+                checkoutLocality.trim() ? `Locality: ${checkoutLocality.trim()}` : '',
+                checkoutLandmark.trim() ? `Landmark: ${checkoutLandmark.trim()}` : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : '',
         pinCode: checkoutFulfilment === 'delivery' ? checkoutPinCode.trim() : '',
         pickupDate: checkoutPickupDate,
         pickupTimeSlot: checkoutPickupSlot,
@@ -1154,23 +1210,67 @@ export default function App() {
   }
 
   // Filter published products for customer views
-  const publishedProducts = products.filter((p) => p.isAvailable);
+  const publishedProducts = products.filter((p) => p.isAvailable && !p.isArchived);
   const bestsellerProducts = publishedProducts.filter((p) => p.isBestseller);
 
-  // Determine active Product Detail Page (PDP) product if on /menu/[slug] or /cakes/[slug]
+  // Determine active Product Detail Page (PDP) product if on /menu/[slug], /cakes/[slug], or /products/[slug]
   const activePdpSlug = currentPath.startsWith('/menu/')
     ? currentPath.replace('/menu/', '')
     : currentPath.startsWith('/cakes/')
     ? currentPath.replace('/cakes/', '')
+    : currentPath.startsWith('/products/')
+    ? currentPath.replace('/products/', '')
     : null;
   const activePdpProduct = activePdpSlug
-    ? publishedProducts.find((p) => p.slug === activePdpSlug || p.id === activePdpSlug) || null
+    ? products.find((p) => !p.isArchived && (p.slug === activePdpSlug || p.id === activePdpSlug)) ||
+      null
     : null;
 
-  // Determine active Category filter if on /categories/[slug]
-  const routeCategorySlug = currentPath.startsWith('/categories/')
+  // Determine active Category filter if on /categories/[slug] (with singular/plural alias resolution)
+  const rawRouteCategorySlug = currentPath.startsWith('/categories/')
     ? currentPath.replace('/categories/', '')
     : null;
+  const routeCategorySlug =
+    rawRouteCategorySlug === 'pastries'
+      ? 'pastries-desserts'
+      : rawRouteCategorySlug === 'pizzas'
+      ? 'pizza'
+      : rawRouteCategorySlug;
+
+  // Dynamic SEO Document Title per Route
+  useEffect(() => {
+    const brandSuffix = "Lovey's Bakery & Pizza Corners, Renukoot";
+    if (activePdpProduct) {
+      document.title = `${activePdpProduct.name} — ${brandSuffix}`;
+    } else if (routeCategorySlug) {
+      const cat = categories.find((c) => c.slug === routeCategorySlug);
+      document.title = `${cat ? cat.name : 'Category Catalogue'} — ${brandSuffix}`;
+    } else if (currentPath === '/menu') {
+      document.title = `Explore Full Bakery & Pizza Menu — ${brandSuffix}`;
+    } else if (currentPath === '/cakes') {
+      document.title = `Signature Celebration Cakes — ${brandSuffix}`;
+    } else if (currentPath === '/custom-cake') {
+      document.title = `Custom Cake Ordering Studio — ${brandSuffix}`;
+    } else if (currentPath === '/gallery') {
+      document.title = `Celebration & Bakery Gallery — ${brandSuffix}`;
+    } else if (currentPath === '/about') {
+      document.title = `Our Story — ${brandSuffix}`;
+    } else if (currentPath === '/contact') {
+      document.title = `Store Location & Contact — ${brandSuffix}`;
+    } else if (currentPath === '/cart' || currentPath === '/checkout') {
+      document.title = `Order Cart & Checkout — ${brandSuffix}`;
+    } else if (
+      currentPath === '/track-order' ||
+      currentPath.startsWith('/order/') ||
+      currentPath.startsWith('/payment/')
+    ) {
+      document.title = `Track Order & Advance Payment — ${brandSuffix}`;
+    } else if (currentPath.startsWith('/admin')) {
+      document.title = `Enterprise Business Management System — ${brandSuffix}`;
+    } else {
+      document.title = `${settings.businessName || "Lovey's Bakery & Pizza Corners"} — Custom Cakes & Artisan Bakery in Renukoot`;
+    }
+  }, [currentPath, activePdpProduct, routeCategorySlug, categories, settings.businessName]);
 
   const cartTotalCount = cart.reduce((acc, i) => acc + i.quantity, 0);
 
@@ -1732,13 +1832,14 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Quantity & Add to Cart Action */}
-                      <div className="pt-6 border-t border-[#E6D7C8] flex flex-wrap items-center gap-4">
+                      {/* Quantity, Add to Cart & Buy Now Actions */}
+                      <div className="pt-6 border-t border-[#E6D7C8] flex flex-wrap items-center gap-3">
                         <div className="flex items-center border border-[#E6D7C8] rounded-xl bg-[#FFF8F1]">
                           <button
                             type="button"
                             onClick={() => setPdpQuantity((q) => Math.max(1, q - 1))}
                             className="p-3 text-[#3B2824] hover:text-[#B94E62]"
+                            aria-label="Decrease quantity"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
@@ -1749,6 +1850,7 @@ export default function App() {
                             type="button"
                             onClick={() => setPdpQuantity((q) => q + 1)}
                             className="p-3 text-[#3B2824] hover:text-[#B94E62]"
+                            aria-label="Increase quantity"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -1756,6 +1858,7 @@ export default function App() {
 
                         <button
                           type="button"
+                          disabled={!activePdpProduct.isAvailable}
                           onClick={() => {
                             const chosenAddonObjs = addonOptions.filter((a) =>
                               pdpSelectedAddons.includes(a.label)
@@ -1782,16 +1885,127 @@ export default function App() {
                               quantity: pdpQuantity,
                             });
                           }}
-                          className="flex-1 py-3.5 px-6 rounded-xl bg-[#B94E62] hover:bg-[#9E3D50] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                          className="flex-1 py-3.5 px-5 rounded-xl bg-[#B94E62] hover:bg-[#9E3D50] disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
                         >
                           <ShoppingBag className="w-4 h-4" />
                           <span>
-                            Add to Cart · ₹{computedUnitPrice * pdpQuantity}
+                            {activePdpProduct.isAvailable
+                              ? `Add to Cart · ₹${computedUnitPrice * pdpQuantity}`
+                              : 'Currently Sold Out'}
                           </span>
                         </button>
+
+                        {activePdpProduct.isAvailable && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const chosenAddonObjs = addonOptions.filter((a) =>
+                                pdpSelectedAddons.includes(a.label)
+                              );
+                              addToCart({
+                                cartItemId: `${activePdpProduct.id}-${Date.now()}`,
+                                productId: activePdpProduct.id,
+                                name: activePdpProduct.name,
+                                nameHi: activePdpProduct.nameHi || activePdpProduct.hindiName,
+                                slug: activePdpProduct.slug,
+                                imageUrl: activePdpProduct.imageUrl,
+                                basePrice: pdpBasePrice,
+                                selectedSizeLabel: selectedSize.label,
+                                selectedSizeDelta: selectedSize.priceDelta,
+                                selectedFlavorLabel: selectedFlavor?.label,
+                                selectedFlavorDelta: selectedFlavor?.priceDelta || 0,
+                                selectedFrostingLabel: selectedFrosting?.label,
+                                selectedFrostingDelta: selectedFrosting?.priceDelta || 0,
+                                selectedAddons: chosenAddonObjs,
+                                cakeMessage: pdpCakeMessage,
+                                specialInstructions: pdpSpecialNote,
+                                isEggless: activePdpProduct.isEggless,
+                                unitPrice: computedUnitPrice,
+                                quantity: pdpQuantity,
+                              });
+                              navigate('/checkout');
+                            }}
+                            className="py-3.5 px-5 rounded-xl bg-[#3B2824] hover:bg-[#523934] text-[#FFF8F1] text-sm font-semibold transition-colors whitespace-nowrap"
+                          >
+                            Buy Now &rarr;
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Related Products Section */}
+                  {(() => {
+                    const relatedList = publishedProducts
+                      .filter(
+                        (p) =>
+                          p.id !== activePdpProduct.id &&
+                          (p.categoryId === activePdpProduct.categoryId || p.isBestseller)
+                      )
+                      .slice(0, 3);
+                    if (relatedList.length === 0) return null;
+                    return (
+                      <div className="space-y-6 pt-4">
+                        <div className="flex items-end justify-between border-b border-[#E6D7C8] pb-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-[#B94E62] font-semibold">
+                              Fresh From Our Ovens
+                            </p>
+                            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#3B2824]">
+                              Related Creations You May Also Love
+                            </h2>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/menu')}
+                            className="text-xs font-bold text-[#B94E62] hover:underline flex items-center gap-1"
+                          >
+                            <span>View Full Menu</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                          {relatedList.map((rel) => {
+                            const relSizes = parseVariantOptions(rel.variantsSummary);
+                            const relPrice = rel.basePrice ?? rel.price ?? 0;
+                            return (
+                              <div
+                                key={rel.id}
+                                onClick={() => navigate(`/menu/${rel.slug}`)}
+                                className="group bg-white border border-[#E6D7C8] rounded-3xl overflow-hidden shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                              >
+                                <div className="aspect-4/3 overflow-hidden bg-[#F5EBE1]">
+                                  <img
+                                    src={rel.imageUrl}
+                                    alt={rel.name}
+                                    loading="lazy"
+                                    decoding="async"
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                </div>
+                                <div className="p-5 flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wider text-[#B94E62] font-semibold">
+                                      {rel.categoryName || rel.categorySlug || 'Artisan'} ·{' '}
+                                      {relSizes[0]?.label || 'Standard'}
+                                    </p>
+                                    <h3 className="font-serif text-lg font-bold text-[#3B2824] group-hover:text-[#B94E62] mt-0.5">
+                                      {rel.name}
+                                    </h3>
+                                  </div>
+                                  <span className="font-serif text-xl font-bold font-mono-num text-[#3B2824] shrink-0">
+                                    ₹{relPrice}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
@@ -2043,17 +2257,78 @@ export default function App() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-1.5">
-                    Design Instructions, Theme Colours &amp; Reference Image URL
+                {/* Reference Photograph File Upload & Optional URL */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-3.5 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#3B2824]">
+                      Upload Reference Cake Photograph (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleCustomCakeRefFileSelect}
+                      className="block w-full text-xs text-[#6B544E] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#3B2824] file:text-[#FFF8F1] hover:file:bg-[#B94E62]"
+                    />
+                    {customRefUploadError && (
+                      <p className="text-[11px] text-[#B94E62] font-semibold">
+                        {customRefUploadError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8] space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#3B2824]">
+                      Or Paste Reference Image URL (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={customRefImageUrl.startsWith('data:') ? '' : customRefImageUrl}
+                      onChange={(e) => setCustomRefImageUrl(e.target.value)}
+                      placeholder="/assets/cakes/... or image link"
+                      className="w-full px-3 py-1.5 rounded-xl border border-[#E6D7C8] bg-white text-xs"
+                    />
+                    {customRefImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomRefImageUrl('')}
+                        className="text-[11px] text-[#B94E62] underline font-semibold"
+                      >
+                        Clear Selected Reference Image
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5">
+                      Design Instructions, Theme Colours &amp; Decoration Notes
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={customDesignNotes}
+                      onChange={(e) => setCustomDesignNotes(e.target.value)}
+                      placeholder="Describe pastel colours, edible pearls, floral arrangement, or custom theme..."
+                      className="w-full p-3 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] text-xs"
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#FFF8F1] border border-[#E6D7C8] cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={customIsQuotation}
+                      onChange={(e) => setCustomIsQuotation(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <strong className="text-[#3B2824]">
+                        Request Bespoke Chef Quotation (Multi-Tier / Sculpted Theme Cake)
+                      </strong>
+                      <span className="block text-[11px] text-[#6B544E]">
+                        Check this if your uploaded reference design has intricate fondant work and you would like our head chef to confirm the final custom quotation.
+                      </span>
+                    </span>
                   </label>
-                  <textarea
-                    rows={2}
-                    value={customDesignNotes}
-                    onChange={(e) => setCustomDesignNotes(e.target.value)}
-                    placeholder="Describe pastel colours, edible pearls, floral arrangement, or custom theme..."
-                    className="w-full p-3 rounded-xl border border-[#E6D7C8] bg-[#FFF8F1] text-xs"
-                  />
                 </div>
               </div>
 
@@ -2380,16 +2655,62 @@ export default function App() {
                             )}
                           </div>
                         </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold mb-1">
+                              Locality / Colony *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={checkoutLocality}
+                              onChange={(e) => setCheckoutLocality(e.target.value)}
+                              placeholder="e.g. Hindalco Colony / Murdhawa"
+                              className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold mb-1">
+                              Nearest Landmark *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={checkoutLandmark}
+                              onChange={(e) => setCheckoutLandmark(e.target.value)}
+                              placeholder="e.g. Near PNB / Tiwari Hotel"
+                              className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold mb-1">
+                              Preferred Delivery Window
+                            </label>
+                            <select
+                              value={checkoutPickupSlot}
+                              onChange={(e) => setCheckoutPickupSlot(e.target.value)}
+                              className="w-full px-3 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs"
+                            >
+                              <option>As Soon As Ready (45–60 mins)</option>
+                              <option>11:00 AM – 1:30 PM</option>
+                              <option>2:00 PM – 5:00 PM</option>
+                              <option>5:30 PM – 8:30 PM</option>
+                              <option>8:30 PM – 10:00 PM</option>
+                            </select>
+                          </div>
+                        </div>
+
                         <div>
                           <label className="block text-xs font-bold mb-1">
-                            Complete Street Address &amp; Landmark in Renukoot / Sonbhadra *
+                            Complete Street Address / House or Quarter Number *
                           </label>
                           <textarea
                             rows={2}
                             required
                             value={checkoutAddress}
                             onChange={(e) => setCheckoutAddress(e.target.value)}
-                            placeholder="House/Flat No, Colony (e.g. Hindalco Colony / Near PNB), Landmark..."
+                            placeholder="House/Quarter No, Street Name, Floor..."
                             className="w-full p-3 rounded-xl border border-[#E6D7C8] bg-white text-xs"
                           />
                         </div>
@@ -2397,48 +2718,76 @@ export default function App() {
                     )}
 
                     {checkoutFulfilment === 'pickup' && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8]">
-                        <div>
-                          <label className="block text-xs font-bold mb-1">Pickup Date</label>
-                          <input
-                            type="date"
-                            value={checkoutPickupDate}
-                            onChange={(e) => setCheckoutPickupDate(e.target.value)}
-                            className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs font-mono-num"
-                          />
+                      <div className="space-y-3 p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8]">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold mb-1">Pickup Date</label>
+                            <input
+                              type="date"
+                              value={checkoutPickupDate}
+                              onChange={(e) => setCheckoutPickupDate(e.target.value)}
+                              className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs font-mono-num"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold mb-1">Pickup Time Slot</label>
+                            <select
+                              value={checkoutPickupSlot}
+                              onChange={(e) => setCheckoutPickupSlot(e.target.value)}
+                              className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs"
+                            >
+                              <option>10:30 AM – 12:30 PM</option>
+                              <option>1:00 PM – 3:30 PM</option>
+                              <option>4:00 PM – 6:00 PM</option>
+                              <option>6:30 PM – 9:30 PM</option>
+                            </select>
+                          </div>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold mb-1">Pickup Time Slot</label>
-                          <select
-                            value={checkoutPickupSlot}
-                            onChange={(e) => setCheckoutPickupSlot(e.target.value)}
+                          <label className="block text-xs font-bold mb-1">
+                            Takeaway Parcel &amp; Packaging Instructions (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={checkoutSpecialNotes}
+                            onChange={(e) => setCheckoutSpecialNotes(e.target.value)}
+                            placeholder="e.g. Pack cake box separately, include birthday knife & napkins..."
                             className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs"
-                          >
-                            <option>10:30 AM – 12:30 PM</option>
-                            <option>1:00 PM – 3:30 PM</option>
-                            <option>4:00 PM – 6:00 PM</option>
-                            <option>6:30 PM – 9:30 PM</option>
-                          </select>
+                          />
                         </div>
                       </div>
                     )}
 
                     {checkoutFulfilment === 'dine_in' && (
-                      <div className="p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8]">
-                        <label className="block text-xs font-bold mb-1.5">
-                          Select Your Dine-In Table at Lovey&apos;s Pizza Corner
-                        </label>
-                        <select
-                          value={checkoutTableNumber}
-                          onChange={(e) => setCheckoutTableNumber(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6D7C8] bg-white text-xs font-bold"
-                        >
-                          {diningTables.map((t) => (
-                            <option key={t.id} value={t.tableNumber}>
-                              {t.label} ({t.capacity} Guests)
-                            </option>
-                          ))}
-                        </select>
+                      <div className="space-y-3 p-4 rounded-2xl bg-[#FFF8F1] border border-[#E6D7C8]">
+                        <div>
+                          <label className="block text-xs font-bold mb-1.5">
+                            Select Your Dine-In Table at Lovey&apos;s Pizza Corner
+                          </label>
+                          <select
+                            value={checkoutTableNumber}
+                            onChange={(e) => setCheckoutTableNumber(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6D7C8] bg-white text-xs font-bold"
+                          >
+                            {diningTables.map((t) => (
+                              <option key={t.id} value={t.tableNumber}>
+                                {t.label} ({t.capacity} Guests)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold mb-1">
+                            Table Service &amp; Kitchen Notes (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={checkoutSpecialNotes}
+                            onChange={(e) => setCheckoutSpecialNotes(e.target.value)}
+                            placeholder="e.g. Serve pizza extra hot, bring plates for 4 guests..."
+                            className="w-full px-3.5 py-2 rounded-xl border border-[#E6D7C8] bg-white text-xs"
+                          />
+                        </div>
                       </div>
                     )}
 
@@ -3215,16 +3564,6 @@ export default function App() {
             {/* SECTION A — CINEMATIC HERO */}
             {/* ============================================================== */}
             <section className="relative bg-[#1E1412] text-[#FFF8F1] overflow-hidden border-b border-[#3B2824]">
-              {/* Oversized Background Editorial Brand Typography */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none select-none absolute -top-10 left-1/2 -translate-x-1/2 w-full text-center overflow-hidden opacity-[0.045]"
-              >
-                <span className="font-serif text-[22vw] font-bold leading-none tracking-tighter text-[#FFF8F1] whitespace-nowrap">
-                  LOVEY&apos;S
-                </span>
-              </div>
-
               {/* Warm Studio Ambient Glow */}
               <div
                 aria-hidden="true"
@@ -3304,6 +3643,9 @@ export default function App() {
                       <img
                         src={settings.heroBannerUrl || '/assets/hero/loveys-hero-spread.jpg'}
                         alt="Lovey's Bakery & Pizza Corners Celebration Spread"
+                        loading="eager"
+                        fetchPriority="high"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover"
                       />
@@ -3317,6 +3659,8 @@ export default function App() {
                       <img
                         src="/assets/cakes/loveys-tier-celebration-cake.jpg"
                         alt="Lovey's Signature Celebration Cake"
+                        loading="eager"
+                        decoding="async"
                         className="w-16 h-16 rounded-xl object-cover shrink-0 border border-[#49332E]"
                       />
                       <div className="pr-2">
@@ -3866,7 +4210,7 @@ export default function App() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => navigate('/categories/pastries')}
+                      onClick={() => navigate('/categories/pastries-desserts')}
                       className="pt-2 text-xs font-bold text-[#B94E62] hover:underline flex items-center gap-1"
                     >
                       <span>Explore Bakery Treats</span>
@@ -3881,6 +4225,8 @@ export default function App() {
                     <img
                       src="/assets/pizza/loveys-stone-baked-pizza.jpg"
                       alt="Lovey's Pizza Corners"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                     />
                   </div>
@@ -3896,7 +4242,7 @@ export default function App() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => navigate('/categories/pizzas')}
+                      onClick={() => navigate('/categories/pizza')}
                       className="pt-2 text-xs font-bold text-[#B94E62] hover:underline flex items-center gap-1"
                     >
                       <span>Order Pizzas &amp; Savouries</span>

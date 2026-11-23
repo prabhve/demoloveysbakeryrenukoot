@@ -380,31 +380,44 @@ async function startServer() {
   // 1. SEO ROUTES: /robots.txt & /sitemap.xml
   // ============================================================================
   app.get('/robots.txt', (req, res) => {
-    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.APP_URL ||
+      `${req.protocol}://${req.get('host')}`;
     res.type('text/plain').send(
       [
         'User-agent: *',
         'Allow: /',
         'Disallow: /admin',
         'Disallow: /api/',
+        'Disallow: /payment/',
         `Sitemap: ${baseUrl}/sitemap.xml`,
       ].join('\n')
     );
   });
 
   app.get('/sitemap.xml', (req, res) => {
-    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.APP_URL ||
+      `${req.protocol}://${req.get('host')}`;
     const publicRoutes = [
       '/',
       '/menu',
       '/cakes',
       '/custom-cake',
-      '/cart',
-      '/checkout',
-      '/track-order',
-      '/about',
       '/gallery',
+      '/about',
       '/contact',
+      '/track-order',
+      '/categories/birthday-cakes',
+      '/categories/designer-cakes',
+      '/categories/chocolate-cakes',
+      '/categories/anniversary-cakes',
+      '/categories/pastries-desserts',
+      '/categories/pizza',
+      '/categories/burgers',
+      '/categories/waffles',
       '/privacy-policy',
       '/terms',
       '/delivery-policy',
@@ -417,7 +430,7 @@ ${publicRoutes
     (route) => `  <url>
     <loc>${baseUrl}${route}</loc>
     <changefreq>daily</changefreq>
-    <priority>${route === '/' ? '1.0' : '0.8'}</priority>
+    <priority>${route === '/' ? '1.0' : route.startsWith('/categories/') ? '0.85' : '0.8'}</priority>
   </url>`
   )
   .join('\n')}
@@ -1795,7 +1808,7 @@ ${publicRoutes
           badge: (rowMap['badge'] || '').trim(),
           imageUrl:
             (rowMap['imageurl'] || '').trim() ||
-            '/assets/products/prod_truffle_cake.png',
+            '/assets/cakes/loveys-chocolate-truffle-gateau.jpg',
           prepTimeMinutes: Number(rowMap['preptimeminutes']) || 25,
           spiceLevel: (rowMap['spicelevel'] || 'none').trim(),
           isBestseller: String(rowMap['isbestseller'] ?? 'false').toLowerCase() === 'true',

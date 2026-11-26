@@ -57,6 +57,7 @@ import { BmsInventoryModule } from './bms/BmsInventoryModule';
 import { BmsWebsiteCmsModule } from './bms/BmsWebsiteCmsModule';
 import { BmsSecurityAndStaffModule } from './bms/BmsSecurityAndStaffModule';
 import { BmsCrmAndAnalyticsModule } from './bms/BmsCrmAndAnalyticsModule';
+import { adminApiFetch } from '../utils/adminAuthClient';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -391,7 +392,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     let active = true;
     const verifyAuthStatus = async () => {
       try {
-        const res = await fetch('/api/admin/auth/status', {
+        const res = await adminApiFetch('/api/admin/auth/status', {
           headers: passwordSessionToken
             ? { Authorization: `Bearer ${passwordSessionToken}` }
             : {},
@@ -482,7 +483,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handlePasswordSignOut = async () => {
     try {
-      await fetch('/api/admin/auth/logout', {
+      await adminApiFetch('/api/admin/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -537,7 +538,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setStepUpError(null);
 
     try {
-      const res = await fetch('/api/admin/auth/reauthenticate', {
+      const res = await adminApiFetch('/api/admin/auth/reauthenticate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -577,7 +578,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     setLoginSubmitting(true);
     try {
-      const res = await fetch('/api/admin/auth/bootstrap-owner', {
+      const res = await adminApiFetch('/api/admin/auth/bootstrap-owner', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -621,7 +622,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setLoginSuccessMsg(null);
     setLoginSubmitting(true);
     try {
-      const res = await fetch('/api/admin/auth/login', {
+      const res = await adminApiFetch('/api/admin/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -701,7 +702,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setForgotResult(null);
     setLoginSubmitting(true);
     try {
-      const res = await fetch('/api/admin/auth/forgot-password', {
+      const res = await adminApiFetch('/api/admin/auth/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -739,7 +740,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     setLoginSubmitting(true);
     try {
-      const res = await fetch('/api/admin/auth/reset-password', {
+      const res = await adminApiFetch('/api/admin/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -786,7 +787,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     setLoginSubmitting(true);
     try {
-      const res = await fetch('/api/admin/auth/change-password', {
+      const res = await adminApiFetch('/api/admin/auth/change-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1720,7 +1721,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleValidateCsvImport = async () => {
     if (!csvTextInput.trim()) return;
     try {
-      const res = await fetch('/api/admin/products/validate-csv', {
+      const res = await adminApiFetch('/api/admin/products/validate-csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ csvText: csvTextInput }),
@@ -2362,7 +2363,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setInspectingScreenshotOrder(rec);
     setSignedEvidenceMeta(null);
     try {
-      const res = await fetch('/api/admin/payments/signed-evidence-url', {
+      const res = await adminApiFetch('/api/admin/payments/signed-evidence-url', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -26,6 +26,7 @@ import {
   PaymentVerificationHistoryRecord,
   BusinessSettings,
 } from '../data/initialCatalogue';
+import { adminApiFetch } from '../utils/adminAuthClient';
 import {
   CheckCircle2,
   Copy,
@@ -301,7 +302,7 @@ export const AdvancePaymentView: React.FC<AdvancePaymentViewProps> = ({
     setSubmittingProof(true);
     try {
       // 1. Validate on Server (/api/payments/validate-submission)
-      const valRes = await fetch('/api/payments/validate-submission', {
+      const valRes = await adminApiFetch('/api/payments/validate-submission', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

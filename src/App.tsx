@@ -21,6 +21,7 @@ import {
   OperationType,
   handleFirestoreError,
 } from './lib/firebase';
+import { adminApiFetch } from './utils/adminAuthClient';
 import {
   INITIAL_BUSINESS_SETTINGS,
   INITIAL_PAYMENT_SETTINGS,
@@ -964,7 +965,7 @@ export default function App() {
     setPlacingOrder(true);
     try {
       // 1. Server-side price, PIN code serviceability & advance payment calculation
-      const verifyRes = await fetch('/api/orders/verify-pricing', {
+      const verifyRes = await adminApiFetch('/api/orders/verify-pricing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1197,50 +1198,6 @@ export default function App() {
     }
   }, [currentPath]);
 
-  // --------------------------------------------------------------------------
-  // 10. ADMIN ROUTE DELEGATION (/admin/*)
-  // --------------------------------------------------------------------------
-  if (currentPath.startsWith('/admin')) {
-    return (
-      <>
-        <AdminDashboard
-          currentPath={currentPath}
-          onNavigate={navigate}
-          userEmail={passwordAuthEmail || currentUser?.email || null}
-          isAdminUser={isAdminUser}
-          onSignIn={handleGoogleSignIn}
-          onSignOut={handleGoogleSignOut}
-          onPasswordAuthSuccess={(account) => {
-            setPasswordAuthEmail(account.email);
-          }}
-          settings={settings}
-          paymentSettings={paymentSettings}
-          categories={categories}
-          products={products}
-          cakeDesigns={cakeDesigns}
-          mediaAssets={mediaAssets}
-          coupons={coupons}
-          deliveryZones={deliveryZones}
-          diningTables={diningTables}
-          orders={adminOrders}
-          orderPayments={adminOrderPayments}
-          paymentSubmissions={adminPaymentSubmissions}
-          paymentHistory={adminPaymentHistory}
-          websiteConfig={websiteConfig}
-          customPages={customPages}
-          staffMembers={staffMembers}
-          roleDefinitions={roleDefinitions}
-          inventoryLogs={inventoryLogs}
-          rawMaterials={rawMaterials}
-          customerCrmNotes={customerCrmNotes}
-          adminNotifications={adminNotifications}
-          auditLogs={auditLogs}
-          backupRecords={backupRecords}
-        />
-      </>
-    );
-  }
-
   // Filter published products for customer views
   const publishedProducts = products.filter((p) => p.isAvailable && !p.isArchived);
   const bestsellerProducts = publishedProducts.filter((p) => p.isBestseller);
@@ -1278,7 +1235,7 @@ export default function App() {
   // Synchronise live Firestore data with server-side pre-render & sitemap snapshot
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      fetch('/api/seo/sync-snapshot', {
+      adminApiFetch('/api/seo/sync-snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1406,6 +1363,50 @@ export default function App() {
   );
 
   const cartTotalCount = cart.reduce((acc, i) => acc + i.quantity, 0);
+
+  // --------------------------------------------------------------------------
+  // 10. ADMIN ROUTE DELEGATION (/admin/*) — Executed after all React hooks
+  // --------------------------------------------------------------------------
+  if (currentPath.startsWith('/admin')) {
+    return (
+      <>
+        <AdminDashboard
+          currentPath={currentPath}
+          onNavigate={navigate}
+          userEmail={passwordAuthEmail || currentUser?.email || null}
+          isAdminUser={isAdminUser}
+          onSignIn={handleGoogleSignIn}
+          onSignOut={handleGoogleSignOut}
+          onPasswordAuthSuccess={(account) => {
+            setPasswordAuthEmail(account.email);
+          }}
+          settings={settings}
+          paymentSettings={paymentSettings}
+          categories={categories}
+          products={products}
+          cakeDesigns={cakeDesigns}
+          mediaAssets={mediaAssets}
+          coupons={coupons}
+          deliveryZones={deliveryZones}
+          diningTables={diningTables}
+          orders={adminOrders}
+          orderPayments={adminOrderPayments}
+          paymentSubmissions={adminPaymentSubmissions}
+          paymentHistory={adminPaymentHistory}
+          websiteConfig={websiteConfig}
+          customPages={customPages}
+          staffMembers={staffMembers}
+          roleDefinitions={roleDefinitions}
+          inventoryLogs={inventoryLogs}
+          rawMaterials={rawMaterials}
+          customerCrmNotes={customerCrmNotes}
+          adminNotifications={adminNotifications}
+          auditLogs={auditLogs}
+          backupRecords={backupRecords}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFF8F1] text-[#3B2824]">

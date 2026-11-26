@@ -14,6 +14,7 @@ import {
   BackupRecordItem,
   BmsPermissionKey,
 } from '../../data/initialCatalogue';
+import { adminApiFetch } from '../../utils/adminAuthClient';
 import {
   Shield,
   Users,
@@ -228,7 +229,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
   const fetchSecurityOverview = useCallback(async () => {
     setLoadingSecurityOverview(true);
     try {
-      const res = await fetch('/api/admin/auth/security-overview', {
+      const res = await adminApiFetch('/api/admin/auth/security-overview', {
         headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {},
       });
       const data = await res.json();
@@ -299,7 +300,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
       const nowIso = new Date().toISOString();
 
       try {
-        const res = await fetch('/api/admin/auth/staff-credentials', {
+        const res = await adminApiFetch('/api/admin/auth/staff-credentials', {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify({
@@ -386,7 +387,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
       `${nextStatus === 'suspended' ? 'Deactivate' : 'Reactivate'} Staff Account (${staff.email})`,
       async () => {
         try {
-          const res = await fetch('/api/admin/auth/staff-credentials', {
+          const res = await adminApiFetch('/api/admin/auth/staff-credentials', {
             method: 'POST',
             headers: authHeaders(),
             body: JSON.stringify({
@@ -432,7 +433,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
     setErrorMsg(null);
     requestStepUpVerification(`Force Password Reset & Revoke Sessions (${staff.email})`, async () => {
       try {
-        const res = await fetch('/api/admin/auth/staff-credentials', {
+        const res = await adminApiFetch('/api/admin/auth/staff-credentials', {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify({
@@ -485,7 +486,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
   const handleRevokeStaffSessions = async (staff: StaffMemberRecord) => {
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/admin/auth/sessions/revoke', {
+      const res = await adminApiFetch('/api/admin/auth/sessions/revoke', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ targetAccountId: staff.id }),
@@ -582,7 +583,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
 
     setChangingPassword(true);
     try {
-      const res = await fetch('/api/admin/auth/change-password', {
+      const res = await adminApiFetch('/api/admin/auth/change-password', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
@@ -679,7 +680,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
 
     setChangingEmail(true);
     try {
-      const res = await fetch('/api/admin/auth/change-email', {
+      const res = await adminApiFetch('/api/admin/auth/change-email', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
@@ -759,7 +760,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
   const handleRevokeSession = async (sessionId?: string, revokeAllOthers = false) => {
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/admin/auth/sessions/revoke', {
+      const res = await adminApiFetch('/api/admin/auth/sessions/revoke', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ sessionId, revokeAllOthers }),
@@ -792,7 +793,7 @@ export const BmsSecurityAndStaffModule: React.FC<BmsSecurityAndStaffModuleProps>
           collections: allCollectionsSnapshot,
         };
 
-        const res = await fetch('/api/admin/backup/verify-snapshot', {
+        const res = await adminApiFetch('/api/admin/backup/verify-snapshot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ snapshotPayload }),
